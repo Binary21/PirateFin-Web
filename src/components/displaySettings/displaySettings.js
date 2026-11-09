@@ -88,7 +88,8 @@ function loadForm(context, user, userSettings) {
         context.querySelector('.learnHowToContributeContainer').classList.add('hide');
     }
 
-    context.querySelector('.selectDashboardThemeContainer').classList.toggle('hide', !user.Policy.IsAdministrator);
+    // PirateFin: the dashboard always uses the main theme, so there is no separate dashboard theme to pick.
+    context.querySelector('.selectDashboardThemeContainer').classList.add('hide');
 
     if (appHost.supports(AppFeature.Screensaver)) {
         context.querySelector('.selectScreensaverContainer').classList.remove('hide');
@@ -118,6 +119,7 @@ function loadForm(context, user, userSettings) {
 
     context.querySelector('#chkThemeSong').checked = userSettings.enableThemeSongs();
     context.querySelector('#chkThemeVideo').checked = userSettings.enableThemeVideos();
+    context.querySelector('#chkHeroTrailers').checked = userSettings.enableHeroTrailers();
     context.querySelector('#chkFadein').checked = userSettings.enableFastFadein();
     context.querySelector('#chkBlurhash').checked = userSettings.enableBlurhash();
     context.querySelector('#chkBackdrops').checked = userSettings.enableBackdrops();
@@ -153,6 +155,7 @@ function saveUser(context, user, userSettingsInstance, apiClient) {
 
     userSettingsInstance.enableThemeSongs(context.querySelector('#chkThemeSong').checked);
     userSettingsInstance.enableThemeVideos(context.querySelector('#chkThemeVideo').checked);
+    userSettingsInstance.enableHeroTrailers(context.querySelector('#chkHeroTrailers').checked);
     userSettingsInstance.theme(context.querySelector('#selectTheme').value);
     userSettingsInstance.dashboardTheme(context.querySelector('#selectDashboardTheme').value);
     userSettingsInstance.screensaver(context.querySelector('.selectScreensaver').value);

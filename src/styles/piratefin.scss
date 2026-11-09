@@ -1,0 +1,683 @@
+// PirateFin components (billboard, buttons, status badges). Theme independent.
+
+$pf-red: #e50914;
+
+// Buttons: Netflix's white "Play" and translucent grey "More Info".
+.pfButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    margin: 0;
+    padding: 0.55em 1.6em 0.55em 1.2em;
+    border: 0;
+    border-radius: 0.25em;
+    font: inherit;
+    font-size: 1.1em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+
+    .material-icons {
+        font-size: 1.6em;
+    }
+}
+
+.pfButton-primary {
+    background: #fff;
+    color: #000;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.75);
+    }
+}
+
+.pfButton-secondary {
+    background: rgba(109, 109, 110, 0.7);
+    color: #fff;
+
+    &:hover {
+        background: rgba(109, 109, 110, 0.45);
+    }
+}
+
+.pfButton:focus {
+    outline: none;
+    box-shadow: 0 0 0 0.1em rgba(0, 0, 0, 0.8), 0 0 0 0.18em rgba(255, 255, 255, 0.85);
+}
+
+.layout-tv .pfButton:focus {
+    transform: scale(1.08);
+}
+
+// Billboard
+.pfHeroContainer:empty {
+    display: none;
+}
+
+.pfHero {
+    position: relative;
+    overflow: hidden;
+    height: 56.25vw;
+    max-height: 85vh;
+    min-height: 22em;
+    margin-bottom: -6vw;
+    background-color: #000;
+}
+
+// Two stacked layers: the next slide's backdrop fades in over the current one.
+.pfHero-backdrop {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center 20%;
+    opacity: 0;
+    transition: opacity 1s ease, filter 0.6s ease, transform 0.6s ease;
+}
+
+.pfHero-backdrop-active {
+    opacity: 1;
+}
+
+// A small preview stands in, blurred, until the full size image has loaded (scaled a little so the blur has no
+// soft edges).
+.pfHero-backdrop-blurred {
+    filter: blur(1.2em);
+    transform: scale(1.06);
+}
+
+// The trailer sits over the backdrop and fades in once it's playing. It ignores the pointer, like an image.
+.pfHero-trailer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1s ease;
+
+    // Fills the billboard like a cover image, anchored to the top: when the billboard is shorter than 16:9, only the
+    // bottom is cut, where it fades into the rows.
+    .pfHero-trailerVideo {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center top;
+        background: transparent;
+    }
+}
+
+.pfHero-trailer-visible {
+    opacity: 1;
+}
+
+// Mute / unmute: a white icon on a grey circle, styled like the More Info button (the white ring only when selected).
+.pfHeroMute {
+    position: absolute;
+    top: 5.5em;
+    right: 4%;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6em;
+    height: 2.6em;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(109, 109, 110, 0.7);
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+
+    .layout-mobile & {
+        top: 4.5em;
+    }
+
+    .material-icons {
+        font-size: 1.4em;
+    }
+
+    &:hover {
+        background: rgba(109, 109, 110, 0.45);
+    }
+
+    &:focus {
+        outline: none;
+        box-shadow: 0 0 0 0.1em rgba(0, 0, 0, 0.8), 0 0 0 0.18em rgba(255, 255, 255, 0.85);
+    }
+
+    .layout-tv &:focus {
+        transform: scale(1.08);
+    }
+}
+
+.layout-mobile .pfHero {
+    height: 70vh;
+    margin-bottom: 0;
+}
+
+// Over a billboard the header is a black gradient on the image, as tall as the bar it replaces; scrolled, it's
+// solid again.
+.skinHeader.pfHeader-overHero:not(.pfHeader-scrolled) {
+    background-color: transparent !important;
+    background-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.45) 60%, rgba(0, 0, 0, 0) 100%);
+}
+
+.pfHero-vignette {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(77deg, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 60%),
+        linear-gradient(180deg, rgba(0, 0, 0, 0) 55%, #000 100%);
+}
+
+.pfHero-content {
+    position: absolute;
+    left: 0;
+    bottom: 28%;
+    width: 40%;
+    min-width: 18em;
+    max-width: 40em;
+    z-index: 1;
+
+    .layout-mobile & {
+        bottom: 8%;
+        width: 90%;
+    }
+}
+
+.pfHero-details {
+    transition: opacity 0.3s ease;
+}
+
+.pfHero-details-hidden {
+    opacity: 0;
+}
+
+// "New Episode · S2:E5 – Title" / "Continue · ... left"
+.pfHero-badge {
+    margin-bottom: 0.6em;
+    font-size: clamp(0.95em, 1.3vw, 1.35em);
+    font-weight: 700;
+    text-shadow: 0 0.1em 0.3em rgba(0, 0, 0, 0.6);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.pfHero-logo {
+    display: block;
+    max-width: 100%;
+    max-height: 9em;
+    margin-bottom: 1em;
+    object-fit: contain;
+    object-position: left bottom;
+}
+
+.pfHero-title {
+    margin: 0 0 0.3em;
+    font-size: clamp(2em, 4.5vw, 4.5em);
+    font-weight: 800;
+    line-height: 1;
+    text-shadow: 0 0.05em 0.4em rgba(0, 0, 0, 0.45);
+}
+
+.pfHero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5em;
+    margin-bottom: 0.8em;
+    color: #e5e5e5;
+    font-weight: 600;
+}
+
+.pfHero-rating {
+    padding: 0 0.4em;
+    border: 0.08em solid rgba(255, 255, 255, 0.4);
+    font-size: 0.85em;
+}
+
+.pfHero-dot::before {
+    content: '•';
+    opacity: 0.6;
+}
+
+.pfHero-overview {
+    margin: 0 0 1.4em;
+    font-size: clamp(0.95em, 1.2vw, 1.3em);
+    line-height: 1.4;
+    text-shadow: 0 0.1em 0.3em rgba(0, 0, 0, 0.6);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+// Margins rather than flex gap: TV web views run older Chromium without flexbox gap support.
+.pfHero-buttons {
+    display: flex;
+
+    > .pfButton + .pfButton {
+        margin-left: 0.75em;
+    }
+}
+
+// Room for the focused button to grow without touching its neighbour.
+.layout-tv .pfHero-buttons > .pfButton + .pfButton {
+    margin-left: 1.5em;
+}
+
+// Rows that follow the billboard sit on top of its bottom fade.
+.pfHeroContainer + .verticalSection,
+.pfHeroContainer ~ .verticalSection {
+    position: relative;
+    z-index: 1;
+}
+
+// Status badges on cards and list items
+.pfStatusBadge {
+    position: absolute;
+    left: 0.4em;
+    bottom: 0.4em;
+    padding: 0.2em 0.55em;
+    border-radius: 0.2em;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.cardIndicators .pfStatusBadge,
+.listItemIndicators .pfStatusBadge {
+    position: static;
+}
+
+.pfStatusBadge-Unaired {
+    background: rgba(0, 0, 0, 0.85);
+    border: 0.08em solid rgba(255, 255, 255, 0.35);
+}
+
+.pfStatusBadge-Searching {
+    background: rgba(70, 70, 70, 0.9);
+}
+
+.pfStatusBadge-ChooseSource {
+    background: #f5a623;
+    color: #000;
+}
+
+.pfStatusBadge-Available {
+    background: rgba(255, 255, 255, 0.9);
+    color: #000;
+}
+
+.pfStatusBadge-Downloading {
+    background: $pf-red;
+}
+
+.pfStatusBadge-NotFound {
+    background: #5a5a5a;
+    color: #ddd;
+}
+
+// Detail page status line
+.pfDetailStatus {
+    display: inline-block;
+    margin: 0.4em 0 0.8em;
+    padding: 0.35em 0.8em;
+    border-radius: 0.25em;
+    background: rgba(0, 0, 0, 0.55);
+    font-weight: 600;
+}
+
+.pfDetailStatus-ChooseSource {
+    border-left: 0.25em solid #f5a623;
+}
+
+.pfDetailStatus-Downloading {
+    border-left: 0.25em solid $pf-red;
+}
+
+// Labelled primary detail buttons (Play / Choose source)
+.detailButton.pfDetailButton-primary {
+    .detailButton-content {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.35em;
+        padding: 0.45em 1.4em 0.45em 1em;
+        border-radius: 0.25em;
+        background: #fff;
+        color: #000;
+        font-weight: 700;
+    }
+
+    &:hover .detailButton-content {
+        background: rgba(255, 255, 255, 0.75);
+    }
+
+    &:focus .detailButton-content {
+        box-shadow: 0 0 0 0.1em rgba(0, 0, 0, 0.8), 0 0 0 0.18em rgba(255, 255, 255, 0.85);
+    }
+}
+
+.layout-tv .detailButton.pfDetailButton-primary:focus .detailButton-content {
+    transform: scale(1.08);
+}
+
+.pfButtonLabel {
+    font-size: 1.05em;
+}
+
+.btnChooseSource.pfDetailButton-primary .detailButton-content { /* stylelint-disable-line no-descending-specificity */
+    background: #f5a623;
+}
+
+.listItem-unavailabilityMessage {
+    color: #f5a623 !important;
+}
+
+.listItemImage-unavailable {
+    opacity: 0.4;
+    filter: grayscale(100%);
+}
+
+.pfSearchInternetPrompt {
+    margin: 0.5em 0 1em;
+
+    .pfButton { /* stylelint-disable-line no-descending-specificity */
+        font-size: 0.95em;
+    }
+}
+
+// Header: profile and navigation on the left, search + Movies / Shows / Anime centered, logo in the right corner.
+.skinHeader .headerTop {
+    position: relative;
+    gap: 0.25em;
+}
+
+.pfHeaderCenter {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    gap: 0.25em;
+    transform: translate(-50%, -50%);
+}
+
+.pfHeaderCenter > .headerTabs {
+    position: static;
+    width: auto;
+    margin: 0;
+}
+
+// The three tabs always fit, so they never scroll.
+.pfHeaderCenter .headerTabs,
+.pfHeaderCenter .emby-tabs {
+    width: auto !important;
+    overflow: visible !important;
+}
+
+.pfHeaderCenter .emby-tabs-slider {
+    display: flex;
+    align-items: center;
+}
+
+.skinHeader .headerRight {
+    margin-left: auto;
+    align-items: center;
+}
+
+// The requests bell: a red dot while any request waits for an admin.
+.headerRequestsButton {
+    position: relative;
+}
+
+.headerRequestsDot {
+    position: absolute;
+    top: 0.45em;
+    right: 0.45em;
+    width: 0.55em;
+    height: 0.55em;
+    border-radius: 50%;
+    background: $pf-red;
+    box-shadow: 0 0 0 0.12em #141414;
+    pointer-events: none;
+}
+
+// The profile icon: a real circle (the stock button scales the image up inside a clipped circle, which cut off its
+// top and bottom on hover). Hover / focus get a thin ring instead of the red highlight.
+.skinHeader .headerUserButton.headerUserButtonRound {
+    overflow: visible;
+    padding: 0.35em;
+    background: transparent !important;
+
+    > .headerUserButtonRound {
+        display: block;
+        width: 2.1em;
+        height: 2.1em;
+        padding: 0;
+        overflow: visible;
+        transform: none;
+        transition: box-shadow 0.2s;
+    }
+
+    &:hover > .headerUserButtonRound,
+    &:focus > .headerUserButtonRound {
+        box-shadow: 0 0 0 0.12em rgba(255, 255, 255, 0.85);
+    }
+}
+
+// The logo lives in the right corner now; the old page title logo is not needed.
+.skinHeader .pageTitleWithDefaultLogo {
+    display: none;
+}
+
+.pfHeaderLogo {
+    display: flex;
+    align-items: center;
+    margin: 0 1em 0 0.75em;
+    pointer-events: none;
+    user-select: none;
+}
+
+.pfLogo {
+    display: block;
+    height: 2.1em;
+}
+
+.layout-tv .pfLogo {
+    height: 2.6em;
+}
+
+// Phones are too narrow to overlay the centered group; it gets its own row.
+.layout-mobile .skinHeader .headerTop {
+    flex-wrap: wrap;
+}
+
+.layout-mobile .pfHeaderCenter {
+    position: static;
+    order: 3;
+    flex-basis: 100%;
+    justify-content: center;
+    transform: none;
+}
+
+// One header row on desktop / TV, so pages need less room above them.
+.layout-desktop .libraryPage:not(.noSecondaryNavPage, .itemDetailPage),
+.layout-tv .libraryPage:not(.noSecondaryNavPage, .itemDetailPage) {
+    padding-top: 4.6em !important;
+}
+
+.layout-desktop .absolutePageTabContent,
+.layout-tv .absolutePageTabContent {
+    top: 4.4em !important;
+}
+
+// Profile menu: a dropdown under the profile picture, as tall as its options, on a translucent tint.
+.actionSheet.pfDropdownMenu {
+    // Sized to the longest item; the generic sheet shrinks to its ellipsised text and cut it off.
+    width: max-content;
+    min-width: 13em;
+    max-width: none;
+    max-height: none;
+    height: auto;
+    overflow: visible;
+    border: 0.08em solid rgba(255, 255, 255, 0.15);
+    border-radius: 0.3em !important;
+    background: rgba(0, 0, 0, 0.72) !important;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0.5em 1.5em rgba(0, 0, 0, 0.6);
+
+    .actionSheetTitle {
+        font-size: 1.1em;
+        text-align: center;
+    }
+
+    .actionSheetContent,
+    .actionSheetScroller {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    // The TV scroller is capped at 60% of the sheet, which clipped the item text in half.
+    .actionSheetScroller {
+        width: 100%;
+        max-width: none !important;
+    }
+
+    .actionSheetMenuItem {
+        width: 100%;
+        background: transparent;
+        color: #e5e5e5;
+    }
+
+    .actionsheetListItemBody {
+        flex: 1 0 auto;
+        contain: none;
+    }
+
+    .actionSheetItemText {
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .actionSheetMenuItem:hover,
+    .actionSheetMenuItem:focus {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+    }
+}
+
+// The profile picker: Home is the only way out.
+.skinHeader.pfHeader-homeOnly {
+    .headerUserButton,
+    .headerRequestsButton,
+    .headerBackButton,
+    .mainDrawerButton,
+    .headerSearchButton,
+    .pageTitle,
+    .pfHeaderCenter,
+    .headerRight {
+        display: none !important;
+    }
+}
+
+// Signing in to add a profile: Back (to the profile picker) and Home only.
+.skinHeader.pfHeader-backHome {
+    .headerUserButton,
+    .headerRequestsButton,
+    .mainDrawerButton,
+    .headerSearchButton,
+    .pageTitle,
+    .pfHeaderCenter,
+    .headerRight {
+        display: none !important;
+    }
+}
+
+// Not playable yet: Play is grey (white only once it can play). On an episode / movie page it fills with red, left to
+// right, as the download gets to the point where it can play; the width transition keeps it moving between updates.
+$pf-play-not-ready: rgba(109, 109, 110, 0.7);
+
+.detailButton.pfDetailButton-primary.pfPlay-notReady {
+    cursor: default;
+
+    .detailButton-content { /* stylelint-disable-line no-descending-specificity */
+        position: relative;
+        overflow: hidden;
+        background: $pf-play-not-ready;
+        color: #fff;
+    }
+
+    .detailButton-content::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: calc(var(--pf-play-fill, 0) * 100%);
+        background: $pf-red;
+        transition: width var(--pf-play-fill-duration, 0s) linear;
+    }
+
+    .detailButton-icon,
+    .pfButtonLabel {
+        position: relative;
+    }
+}
+
+// Billboard Play and episode list play icons: grey and disabled until it can play (no fill).
+.pfButton.pfButton-primary.pfPlay-notReady {
+    background: $pf-play-not-ready;
+    color: #fff;
+    cursor: default;
+}
+
+.listItemImageButton.pfPlay-notReady {
+    color: #8c8c8c;
+    pointer-events: none;
+}
+
+// A user with access to none of Movies / Shows / Anime: no tabs, just this.
+.tabContent.pfNoAccess {
+    display: none !important;
+}
+
+.pfNoLibraries {
+    max-width: 40em;
+    margin: 0 auto;
+    padding-top: 8em;
+    text-align: center;
+}
+
+// Kids profiles: no requests, no adding titles. Their look is the Purple Haze theme (see themeManager).
+.pfKids {
+    .btnPfRequest,
+    .skinHeader .headerRequestsButton,
+    .pfSearchInternetPrompt {
+        display: none !important;
+    }
+}
+
+// The "Kids" tag on a profile.
+.pfKidsBadge {
+    display: inline-block;
+    margin-left: 0.5em;
+    padding: 0.05em 0.5em;
+    border-radius: 1em;
+    background: $pf-red;
+    color: #fff;
+    font-size: 0.7em;
+    font-weight: 800;
+    vertical-align: middle;
+}

@@ -18,6 +18,9 @@ import Page from '../../../../components/Page';
 import prompt from '../../../../components/prompt/prompt';
 import { ServerConnections } from 'lib/jellyfin-apiclient';
 import Toast from 'apps/dashboard/components/Toast';
+import alert from 'components/alert';
+import { getProfileSettings, setKidsProfile } from 'utils/piratefin';
+import KidsProfileSection from '../../features/piratefin/components/KidsProfileSection';
 
 type NamedItem = {
     name: string;
@@ -28,14 +31,42 @@ type UnratedNamedItem = NamedItem & {
     checkedAttribute: string
 };
 
+/** PirateFin: the kids profile switch and PIN on this page. */
+interface KidsState {
+    isKids: boolean;
+    wasKids: boolean;
+    hasPin: boolean;
+    pin: string;
+}
+
+/** Why the kids settings can't be saved, or null. */
+function getKidsError(kids: KidsState, hasRating: boolean): string | null {
+    if (!kids.isKids) {
+        return null;
+    }
+    if (!hasRating) {
+        return 'Choose the Maximum allowed parental rating for a kids profile.';
+    }
+    if (kids.pin && kids.pin.length !== 4) {
+        return 'A PIN is 4 digits.';
+    }
+    // A new kids profile needs a PIN; existing ones without one keep working until they get one.
+    if (!kids.wasKids && !kids.hasPin && !kids.pin) {
+        return 'Choose a 4-digit PIN for the kids profile. It\'s asked when leaving the profile.';
+    }
+    return null;
+}
+
 function handleSaveUser(
     page: HTMLDivElement,
     parentalRatingsRef: React.MutableRefObject<ParentalRating[]>,
     getSchedulesFromPage: () => AccessSchedule[],
     getAllowedTagsFromPage: () => string[],
     getBlockedTagsFromPage: () => string[],
-    onSaveComplete: () => void
+    kidsRef: React.MutableRefObject<KidsState>,
+    callbacks: { onSaveComplete: () => void; onSaveFailed: (message: string) => void }
 ) {
+    const { onSaveComplete, onSaveFailed } = callbacks;
     return (user: UserDto) => {
         const userId = user.Id;
         const userPolicy = user.Policy;
@@ -47,6 +78,14 @@ function handleSaveUser(
         const parentalRating = parentalRatingsRef.current[parentalRatingIndex] as ParentalRating;
         const score = parentalRating?.RatingScore?.score;
         const subScore = parentalRating?.RatingScore?.subScore;
+
+        const kids = kidsRef.current;
+        const kidsError = getKidsError(kids, score != null && !Number.isNaN(score));
+        if (kidsError) {
+            onSaveFailed(kidsError);
+            return;
+        }
+
         userPolicy.MaxParentalRating = Number.isNaN(score) ? null : score;
         userPolicy.MaxParentalSubRating = Number.isNaN(subScore) ? null : subScore;
         userPolicy.BlockUnratedItems = Array.prototype.filter
@@ -56,10 +95,17 @@ function handleSaveUser(
         userPolicy.AllowedTags = getAllowedTagsFromPage();
         userPolicy.BlockedTags = getBlockedTagsFromPage();
         ServerConnections.getCurrentApiClientAsync()
-            .then(apiClient => apiClient.updateUserPolicy(userId, userPolicy))
+            .then(async apiClient => {
+                await apiClient.updateUserPolicy(userId, userPolicy);
+                // After the policy: a kids profile needs the rating limit just saved.
+                if (kids.isKids || kids.wasKids) {
+                    await setKidsProfile(apiClient, userId, kids.isKids, kids.pin);
+                }
+            })
             .then(() => onSaveComplete())
             .catch(err => {
                 console.error('[userparentalcontrol] failed to update user policy', err);
+                onSaveFailed('The settings couldn\'t be saved.');
             });
     };
 }
@@ -75,10 +121,27 @@ const UserParentalControl = () => {
     const [ allowedTags, setAllowedTags ] = useState<string[]>([]);
     const [ blockedTags, setBlockedTags ] = useState<string[]>([]);
     const [ isSettingsSavedToastOpen, setIsSettingsSavedToastOpen ] = useState(false);
+    const [ kids, setKids ] = useState<KidsState>({ isKids: false, wasKids: false, hasPin: false, pin: '' });
     const libraryMenu = useMemo(async () => ((await import('../../../../scripts/libraryMenu')).default), []);
 
     const element = useRef<HTMLDivElement>(null);
     const parentalRatingsRef = useRef<ParentalRating[]>([]);
+    const kidsRef = useRef(kids);
+    kidsRef.current = kids;
+
+    // Kids on ticks blocking unrated movies and shows (what kids profiles get), visibly, so it can still be changed.
+    const onKidsChange = useCallback((isKids: boolean) => {
+        setKids(current => ({ ...current, isKids }));
+        if (isKids) {
+            for (const checkbox of element.current?.querySelectorAll<HTMLInputElement>('.chkUnratedItem') ?? []) {
+                if (checkbox.getAttribute('data-itemtype') === UnratedItem.Movie || checkbox.getAttribute('data-itemtype') === UnratedItem.Series) {
+                    checkbox.checked = true;
+                }
+            }
+        }
+    }, []);
+
+    const onKidsPinChange = useCallback((pin: string) => setKids(current => ({ ...current, pin })), []);
 
     const handleToastClose = useCallback(() => {
         setIsSettingsSavedToastOpen(false);
@@ -217,6 +280,10 @@ const UserParentalControl = () => {
         }).catch(err => {
             console.error('[userparentalcontrol] failed to load data', err);
         });
+
+        getProfileSettings(window.ApiClient, userId)
+            .then(profile => setKids({ isKids: profile.IsKids, wasKids: profile.IsKids, hasPin: profile.HasPin, pin: '' }))
+            .catch(err => console.error('[userparentalcontrol] failed to load the kids settings', err));
     }, [loadUser, userId]);
 
     useEffect(() => {
@@ -305,10 +372,24 @@ const UserParentalControl = () => {
 
         const onSaveComplete = () => {
             loading.hide();
+            setKids(current => ({ ...current, wasKids: current.isKids, hasPin: current.hasPin || current.pin.length === 4, pin: '' }));
             setIsSettingsSavedToastOpen(true);
         };
 
-        const saveUser = handleSaveUser(page, parentalRatingsRef, getSchedulesFromPage, getAllowedTagsFromPage, getBlockedTagsFromPage, onSaveComplete);
+        const onSaveFailed = (message: string) => {
+            loading.hide();
+            void alert({ text: message, title: globalize.translate('HeaderError') });
+        };
+
+        const saveUser = handleSaveUser(
+            page,
+            parentalRatingsRef,
+            getSchedulesFromPage,
+            getAllowedTagsFromPage,
+            getBlockedTagsFromPage,
+            kidsRef,
+            { onSaveComplete, onSaveFailed }
+        );
 
         const onSubmit = (e: Event) => {
             if (!userId) {
@@ -405,6 +486,13 @@ const UserParentalControl = () => {
                 </div>
                 <SectionTabs activeTab='userparentalcontrol'/>
                 <form className='userParentalControlForm'>
+                    <KidsProfileSection
+                        isKids={kids.isKids}
+                        hasPin={kids.hasPin}
+                        pin={kids.pin}
+                        onKidsChange={onKidsChange}
+                        onPinChange={onKidsPinChange}
+                    />
                     <div className='selectContainer'>
                         <SelectElement
                             id='selectMaxParentalRating'

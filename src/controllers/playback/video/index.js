@@ -1,8 +1,15 @@
 import escapeHtml from 'escape-html';
 
 import { PlayerEvent } from 'apps/stable/features/playback/constants/playerEvent';
+import { askStillWatching, shouldAskStillWatching } from 'apps/stable/features/playback/utils/stillWatching';
+import { getReadinessCheck, shouldShowUpNext } from 'apps/stable/features/playback/utils/upNextTiming';
+import { getDownloadEdgeAction } from 'apps/stable/features/playback/utils/downloadEdge';
+import { hideDownloadWait, showDownloadWait } from 'apps/stable/features/playback/utils/downloadWait';
+import { DownloadWatcher } from '../../itemDetails/downloadWatcher';
+import { MediaSegmentType } from '@jellyfin/sdk/lib/generated-client/models/media-segment-type';
+import { getMediaSegmentsApi } from '@jellyfin/sdk/lib/utils/api/media-segments-api';
+import { toApi } from 'utils/jellyfin-apiclient/compat';
 import { AppFeature } from 'constants/appFeature';
-import { TICKS_PER_MINUTE, TICKS_PER_SECOND } from 'constants/time';
 import { EventType } from 'constants/eventType';
 
 import { playbackManager } from '../../../components/playback/playbackmanager';
@@ -33,6 +40,9 @@ import LibraryMenu from '../../../scripts/libraryMenu';
 import { setBackdropTransparency, TRANSPARENCY_LEVEL } from '../../../components/backdrop/backdrop';
 import { pluginManager } from '../../../components/pluginManager';
 import { PluginType } from '../../../types/plugin.ts';
+
+/** PirateFin: while held at the downloaded edge, the download status is also fetched this often. */
+const DOWNLOAD_WAIT_POLL_MS = 3000;
 
 function getOpenedDialog() {
     return document.querySelector('.dialogContainer .dialog.opened');
@@ -541,6 +551,40 @@ export default function (view) {
         const player = this;
         onStateChanged.call(player, e, state);
         resetUpNextDialog();
+        resetNextReadiness();
+        loadCreditsStart(state);
+        startDownloadFollow(player, state?.NowPlayingItem);
+
+        // After 3 episodes in a row (or 90 minutes) without anyone touching the controls, check someone's watching.
+        const item = state?.NowPlayingItem;
+        if (shouldAskStillWatching(item?.Type)) {
+            playbackManager.pause(player);
+            askStillWatching(item?.SeriesName || item?.Name || '').then(keepWatching => {
+                if (keepWatching) {
+                    playbackManager.unpause(player);
+                } else {
+                    playbackManager.stop(player);
+                }
+            });
+        }
+    }
+
+    /** Where the credits start (from the media segments), which is when the next-episode countdown starts. */
+    function loadCreditsStart(state) {
+        creditsStartTicks = null;
+        const itemId = state?.MediaSource?.Id;
+        const serverId = state?.NowPlayingItem?.ServerId;
+        if (!state?.MediaSource?.HasSegments || !itemId || !serverId) {
+            return;
+        }
+
+        getMediaSegmentsApi(toApi(ServerConnections.getApiClient(serverId)))
+            .getItemSegments({ itemId, includeSegmentTypes: [ MediaSegmentType.Outro ] })
+            .then(({ data }) => {
+                const outro = (data.Items || []).find(segment => segment.StartTicks != null);
+                creditsStartTicks = outro ? outro.StartTicks : null;
+            })
+            .catch(err => console.error('[PirateFin] could not load the credits position', err));
     }
 
     function resetUpNextDialog() {
@@ -555,6 +599,7 @@ export default function (view) {
 
     function onPlaybackStopped(e, state) {
         currentRuntimeTicks = null;
+        stopDownloadFollow();
         resetUpNextDialog();
         console.debug('nowplaying event: ' + e.type);
 
@@ -596,12 +641,14 @@ export default function (view) {
         Events.on(player, 'volumechange', onVolumeChanged);
         Events.on(player, 'pause', onPlayPauseStateChanged);
         Events.on(player, 'unpause', onPlayPauseStateChanged);
+        Events.on(player, 'unpause', onUnpauseWhileWaiting);
         Events.on(player, 'timeupdate', onTimeUpdate);
         Events.on(player, 'fullscreenchange', onFullscreenChanged);
         Events.on(player, 'mediastreamschange', onMediaStreamsChanged);
         Events.on(player, 'beginFetch', onBeginFetch);
         Events.on(player, 'endFetch', onEndFetch);
         resetUpNextDialog();
+        startDownloadFollow(player, state?.NowPlayingItem);
 
         if (player.isFetching) {
             onBeginFetch();
@@ -609,6 +656,7 @@ export default function (view) {
     }
 
     function releaseCurrentPlayer() {
+        stopDownloadFollow();
         destroyStats();
         destroySubtitleSync();
         resetUpNextDialog();
@@ -621,6 +669,7 @@ export default function (view) {
             Events.off(player, 'volumechange', onVolumeChanged);
             Events.off(player, 'pause', onPlayPauseStateChanged);
             Events.off(player, 'unpause', onPlayPauseStateChanged);
+            Events.off(player, 'unpause', onUnpauseWhileWaiting);
             Events.off(player, 'timeupdate', onTimeUpdate);
             Events.off(player, 'fullscreenchange', onFullscreenChanged);
             Events.off(player, 'mediastreamschange', onMediaStreamsChanged);
@@ -641,9 +690,175 @@ export default function (view) {
                 updateTimeDisplay(currentTime, currentRuntimeTicks, playbackManager.playbackStartTime(player), playbackManager.getPlaybackRate(player), playbackManager.getBufferedRanges(player));
                 const item = currentItem;
                 refreshProgramInfoIfNeeded(player, item);
+                checkNextReadinessIfNeeded(item, currentTime, currentRuntimeTicks);
+                checkDownloadEdge();
                 showComingUpNextIfNeeded(player, item, currentTime, currentRuntimeTicks);
             }
         }
+    }
+
+    // PirateFin: while the video is still downloading, the player is held a margin short of the downloaded edge (past
+    // it the file is empty: the picture freezes while the sound goes on) and carries on once enough more is there. The
+    // server pushes how far the data reaches without a gap until the download completes.
+    function startDownloadFollow(player, item) {
+        if (downloadFollow?.player === player && downloadFollow.itemId === item?.Id) {
+            return;
+        }
+
+        stopDownloadFollow();
+        if (!item?.Id || !player?.isLocalPlayer || (item.Type !== 'Episode' && item.Type !== 'Movie')) {
+            return;
+        }
+
+        const follow = { player, itemId: item.Id, status: null, waiting: false, watcher: null, pollTimer: null };
+        follow.watcher = new DownloadWatcher(ServerConnections.getApiClient(item.ServerId), item.Id, status => {
+            // A failed fetch answers without an ItemId: not a status to act on.
+            if (downloadFollow === follow && status?.ItemId) {
+                follow.status = status;
+                checkDownloadEdge();
+            }
+        }, { untilDownloaded: true });
+        downloadFollow = follow;
+        follow.watcher.start();
+    }
+
+    function stopDownloadFollow() {
+        const follow = downloadFollow;
+        downloadFollow = null;
+        if (follow) {
+            follow.watcher.stop();
+            stopWaitPolling(follow);
+            hideDownloadWait();
+        }
+    }
+
+    // While held at the edge the status is also fetched over HTTP every few seconds, and the follow sent again now and
+    // then: if the pushes stop arriving (the WebSocket dropped, the server lost the follow), it still carries on.
+    function startWaitPolling(follow) {
+        if (follow.pollTimer) {
+            return;
+        }
+
+        let polls = 0;
+        follow.pollTimer = setInterval(() => {
+            follow.watcher.fetch();
+            if (++polls % 5 === 0) {
+                follow.watcher.subscribe();
+            }
+        }, DOWNLOAD_WAIT_POLL_MS);
+    }
+
+    function stopWaitPolling(follow) {
+        clearInterval(follow.pollTimer);
+        follow.pollTimer = null;
+    }
+
+    function getDownloadEdgeActionNow(follow) {
+        if (!follow.status) {
+            return 'none';
+        }
+
+        return getDownloadEdgeAction({
+            positionSeconds: (playbackManager.currentTime(follow.player) || 0) / 1000,
+            playableSeconds: follow.status.PlayableSeconds,
+            runtimeSeconds: (playbackManager.duration(follow.player) || 0) / 1e7,
+            downloaded: !!follow.status.Downloaded,
+            waiting: follow.waiting
+        });
+    }
+
+    function checkDownloadEdge() {
+        const follow = downloadFollow;
+        if (!follow) {
+            return;
+        }
+
+        const action = getDownloadEdgeActionNow(follow);
+        if (action === 'wait') {
+            follow.waiting = true;
+            playbackManager.pause(follow.player);
+        } else if (action === 'resume') {
+            resumeAfterDownloadWait(follow);
+        }
+
+        if (follow.waiting) {
+            showDownloadWait(describeDownloadWait(follow.status));
+            startWaitPolling(follow);
+        } else if (follow.status?.Downloaded) {
+            // Nothing left to watch for.
+            stopDownloadFollow();
+        }
+    }
+
+    function resumeAfterDownloadWait(follow) {
+        follow.waiting = false;
+        stopWaitPolling(follow);
+        hideDownloadWait();
+
+        // What the player (and a transcode) read past the edge was empty: load it again from here.
+        playbackManager.restartStream(follow.player);
+    }
+
+    // Play pressed while held at the edge: still held unless it was sought back to what's there.
+    function onUnpauseWhileWaiting() {
+        const follow = downloadFollow;
+        if (!follow?.waiting) {
+            return;
+        }
+
+        follow.waiting = false;
+        if (getDownloadEdgeActionNow(follow) === 'wait') {
+            follow.waiting = true;
+            playbackManager.pause(follow.player);
+        } else {
+            resumeAfterDownloadWait(follow);
+        }
+    }
+
+    function describeDownloadWait(status) {
+        switch (status?.State) {
+            case 'Paused':
+                return 'The download is paused';
+            case 'Stalled':
+                return 'The download is stalled: no data is coming in';
+            case 'Failed':
+                return 'The download stopped';
+            default: {
+                const percent = Math.floor((status?.ContiguousProgress || 0) * 100);
+                return `${percent}% downloaded. Playback carries on by itself.`;
+            }
+        }
+    }
+
+    function resetNextReadiness() {
+        nextReadiness = { decided: false, ready: false, pending: false, lastCheckTicks: null };
+    }
+
+    // PirateFin: from 2 minutes before the countdown is due, every 30 seconds, check whether the next episode can play
+    // (the server starts its download halfway through this one). Once it can, or the countdown is due, it's decided:
+    // if it can't play by then there's no countdown and playback stops at the end (also without the countdown shown).
+    function checkNextReadinessIfNeeded(item, currentTimeTicks, runtimeTicks) {
+        if (item.Type !== 'Episode' || nextReadiness.decided || nextReadiness.pending || !playbackManager.getNextItem()) {
+            return;
+        }
+
+        const check = getReadinessCheck(currentTimeTicks, runtimeTicks, creditsStartTicks, nextReadiness.lastCheckTicks);
+        if (check === 'none') {
+            return;
+        }
+
+        nextReadiness.pending = true;
+        nextReadiness.lastCheckTicks = currentTimeTicks;
+        const state = nextReadiness;
+        playbackManager.checkNextReadiness().then(ready => {
+            state.ready = ready;
+            state.decided = ready || check === 'final';
+        }).catch(err => {
+            console.error('[PirateFin] could not check whether the next episode can play', err);
+            state.decided = check === 'final';
+        }).finally(() => {
+            state.pending = false;
+        });
     }
 
     function onPromptSkip(e, mediaSegment) {
@@ -652,23 +867,22 @@ export default function (view) {
             && mediaSegment.EndTicks >= playbackManager.duration(player)
             && playbackManager.getNextItem()
             && userSettings.enableNextVideoInfoOverlay()
+            && (currentItem?.Type !== 'Episode' || (nextReadiness.decided && nextReadiness.ready))
         ) {
             showComingUpNext(player);
         }
     }
 
+    // PirateFin: the countdown starts when the credits begin (when detected), else 60 seconds before the end, and it
+    // still comes up when the player controls were open at that moment (they're closed for it).
     function showComingUpNextIfNeeded(player, currentItem, currentTimeTicks, runtimeTicks) {
-        if (runtimeTicks && currentTimeTicks && !comingUpNextDisplayed && !currentVisibleMenu && currentItem.Type === 'Episode' && userSettings.enableNextVideoInfoOverlay()) {
-            let showAtSecondsLeft = 30;
-            if (runtimeTicks >= 50 * TICKS_PER_MINUTE) {
-                showAtSecondsLeft = 40;
-            } else if (runtimeTicks >= 40 * TICKS_PER_MINUTE) {
-                showAtSecondsLeft = 35;
+        if (runtimeTicks && currentTimeTicks && !comingUpNextDisplayed && currentItem.Type === 'Episode' && userSettings.enableNextVideoInfoOverlay()
+            && nextReadiness.decided && nextReadiness.ready
+            && shouldShowUpNext(currentTimeTicks, runtimeTicks, creditsStartTicks)) {
+            if (currentVisibleMenu === 'osd') {
+                hideOsd();
             }
-            const showAtTicks = runtimeTicks - showAtSecondsLeft * TICKS_PER_SECOND;
-            const timeRemainingTicks = runtimeTicks - currentTimeTicks;
-
-            if (currentTimeTicks >= showAtTicks && runtimeTicks >= (10 * TICKS_PER_MINUTE) && timeRemainingTicks >= (20 * TICKS_PER_SECOND)) {
+            if (!currentVisibleMenu) {
                 showComingUpNext(player);
             }
         }
@@ -1624,6 +1838,11 @@ export default function (view) {
 
     let currentPlayer;
     let comingUpNextDisplayed;
+    // PirateFin: whether the next episode can play, checked before the countdown (see checkNextReadinessIfNeeded).
+    let nextReadiness = { decided: false, ready: false, pending: false, lastCheckTicks: null };
+    let creditsStartTicks = null;
+    // PirateFin: the download followed while it plays (see startDownloadFollow).
+    let downloadFollow = null;
     let currentUpNextDialog;
     let isEnabled;
     let currentItem;

@@ -12,6 +12,8 @@ import { loadLibraryTiles } from './sections/libraryTiles';
 import { loadLiveTV } from './sections/liveTv';
 import { loadNextUp } from './sections/nextUp';
 import { loadRecentlyAdded } from './sections/recentlyAdded';
+import { loadNewestAdded } from './sections/newestMedia';
+import { loadPirateFinTab } from './sections/pirateFinTab';
 import { loadResume } from './sections/resume';
 
 import 'elements/emby-button/paper-icon-button-light';
@@ -52,7 +54,7 @@ function getAllSectionsToShow(userSettings, sectionCount) {
     return sections;
 }
 
-export function loadSections(elem, apiClient, user, userSettings) {
+export function loadSections(elem, apiClient, user, userSettings, type) {
     const userId = user.Id || apiClient.getCurrentUserId();
     return queryClient
         .fetchQuery(getUserViewsQuery(toApi(apiClient), userId))
@@ -60,8 +62,17 @@ export function loadSections(elem, apiClient, user, userSettings) {
         .then(function (userViews) {
             let html = '';
 
+            // The Movies / Shows / Anime tabs have a fixed, Netflix style layout for their library.
+            if (userViews.length && type) {
+                elem.classList.add('homeSectionsContainer');
+                return loadPirateFinTab(elem, apiClient, user, userViews, type)
+                    // Timeout for polyfilled CustomElements (webOS 1.2)
+                    .then(() => new Promise((resolve) => setTimeout(resolve, 0)))
+                    .then(() => resume(elem, { refresh: true }));
+            }
+
             if (userViews.length) {
-                const userSectionCount = 10;
+                const userSectionCount = 11;
                 // TV layout can have an extra section to ensure libraries are visible
                 const totalSectionCount = layoutManager.tv ? userSectionCount + 1 : userSectionCount;
                 for (let i = 0; i < totalSectionCount; i++) {
@@ -72,6 +83,7 @@ export function loadSections(elem, apiClient, user, userSettings) {
                 elem.classList.add('homeSectionsContainer');
 
                 const promises = [];
+
                 const sections = getAllSectionsToShow(userSettings, userSectionCount);
                 for (let i = 0; i < sections.length; i++) {
                     promises.push(loadSection(elem, apiClient, user, userSettings, userViews, sections, i));
@@ -148,6 +160,11 @@ function loadSection(page, apiClient, user, userSettings, userViews, allSections
     switch (section) {
         case HomeSectionType.ActiveRecordings:
             loadRecordings(elem, true, apiClient, options);
+            break;
+        case HomeSectionType.NewestMedia:
+            for (const library of ['movies', 'shows', 'anime']) {
+                loadNewestAdded(elem, apiClient, user, userViews, options, library);
+            }
             break;
         case HomeSectionType.LatestMedia:
             loadRecentlyAdded(elem, apiClient, user, userViews, options);

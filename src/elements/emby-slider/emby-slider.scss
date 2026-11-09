@@ -5,7 +5,7 @@
     background: transparent;
     user-select: none;
     outline: 0;
-    color: #00a4dc;
+    color: #e50914;
     align-self: center;
     z-index: 1;
     cursor: pointer;
@@ -58,7 +58,7 @@
     height: 1.08em;
     box-sizing: border-box;
     border-radius: 50%;
-    background: #00a4dc;
+    background: #e50914;
     border: none;
     transition: 0.2s;
     pointer-events: none;
@@ -78,7 +78,7 @@
     height: 1.08em;
     box-sizing: border-box;
     border-radius: 50%;
-    background: #00a4dc;
+    background: #e50914;
     background-image: none;
     border: none;
     transition: 0.2s;
@@ -98,7 +98,7 @@
     height: 1.4em;
     box-sizing: border-box;
     border-radius: 50%;
-    background: #00a4dc;
+    background: #e50914;
     border: none;
     transform: scale(0.771429);
     transition: 0.2s;
@@ -179,7 +179,7 @@
     width: 0;
     top: 0;
     bottom: 0;
-    background-color: #00a4dc;
+    background-color: #e50914;
 
     [dir="ltr"] & {
         left: 0;
@@ -272,5 +272,5 @@
 }
 
 .sliderMarker.watched {
-    background-color: #00a4dc;
+    background-color: #e50914;
 }

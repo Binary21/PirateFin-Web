@@ -8,6 +8,7 @@ import ResponsiveDrawer, { ResponsiveDrawerProps } from 'components/ResponsiveDr
 import ServerDrawerSection from './sections/ServerDrawerSection';
 import DevicesDrawerSection from './sections/DevicesDrawerSection';
 import LiveTvDrawerSection from './sections/LiveTvDrawerSection';
+import PirateFinDrawerSection from './sections/PirateFinDrawerSection';
 import AdvancedDrawerSection from './sections/AdvancedDrawerSection';
 import PluginDrawerSection from './sections/PluginDrawerSection';
 
@@ -27,6 +28,7 @@ const AppDrawer: FC<ResponsiveDrawerProps> = ({
             </ListItem>
         </List>
         <ServerDrawerSection />
+        <PirateFinDrawerSection />
         <DevicesDrawerSection />
         <LiveTvDrawerSection />
         <PluginDrawerSection />

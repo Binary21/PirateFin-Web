@@ -257,6 +257,20 @@ export class UserSettings {
     }
 
     /**
+     * Get or set whether the billboard plays trailers automatically. Saved with the account, so it applies on every
+     * device.
+     * @param {boolean|undefined} [val] - Flag to enable automatic trailers or undefined.
+     * @return {boolean} Whether trailers play automatically.
+     */
+    enableHeroTrailers(val) {
+        if (val !== undefined) {
+            return this.set('enableHeroTrailers', val.toString());
+        }
+
+        return toBoolean(this.get('enableHeroTrailers'), true);
+    }
+
+    /**
      * Get or set 'Fast Fade-in' state.
      * @param {boolean|undefined} [val] - Flag to enable 'Fast Fade-in' or undefined.
      * @return {boolean} 'Fast Fade-in' state.
@@ -401,6 +415,7 @@ export class UserSettings {
 
     /**
      * Get or set theme for Dashboard.
+     * PirateFin: the dashboard always uses the main theme. A stored dashboard theme (stock Jellyfin saved "dark") is ignored.
      * @param {string|undefined} [val] - Theme for Dashboard.
      * @return {string} Theme for Dashboard.
      */
@@ -409,7 +424,7 @@ export class UserSettings {
             return this.set('dashboardTheme', val);
         }
 
-        return this.get('dashboardTheme');
+        return this.theme();
     }
 
     /**
@@ -691,6 +706,7 @@ export const enableNextVideoInfoOverlay = currentSettings.enableNextVideoInfoOve
 export const enableVideoRemainingTime = currentSettings.enableVideoRemainingTime.bind(currentSettings);
 export const enableThemeSongs = currentSettings.enableThemeSongs.bind(currentSettings);
 export const enableThemeVideos = currentSettings.enableThemeVideos.bind(currentSettings);
+export const enableHeroTrailers = currentSettings.enableHeroTrailers.bind(currentSettings);
 export const enableFastFadein = currentSettings.enableFastFadein.bind(currentSettings);
 export const enableBlurhash = currentSettings.enableBlurhash.bind(currentSettings);
 export const enableBackdrops = currentSettings.enableBackdrops.bind(currentSettings);

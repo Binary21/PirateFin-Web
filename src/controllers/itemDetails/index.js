@@ -10,7 +10,9 @@ import { appHost } from 'components/apphost';
 import { clearBackdrop, setBackdrops } from 'components/backdrop/backdrop';
 import cardBuilder from 'components/cardbuilder/cardBuilder';
 import { buildCardImage } from 'components/cardbuilder/cardImage';
+import alert from 'components/alert';
 import confirm from 'components/confirm/confirm';
+import focusManager from 'components/focusManager';
 import imageLoader from 'components/images/imageLoader';
 import itemContextMenu from 'components/itemContextMenu';
 import itemHelper from 'components/itemHelper';
@@ -21,6 +23,7 @@ import loading from 'components/loading/loading';
 import { playbackManager } from 'components/playback/playbackmanager';
 import { appRouter } from 'components/router/appRouter';
 import itemShortcuts from 'components/shortcuts';
+import toast from 'components/toast/toast';
 import { AppFeature } from 'constants/appFeature';
 import globalize from 'lib/globalize';
 import { ServerConnections } from 'lib/jellyfin-apiclient';
@@ -34,6 +37,24 @@ import { getPortraitShape, getSquareShape } from 'utils/card';
 import Dashboard from 'utils/dashboard';
 import Events from 'utils/events';
 import { getItemBackdropImageUrl } from 'utils/jellyfin-apiclient/backdropImage';
+import {
+    formatAirTime,
+    getAirDate,
+    getChangeToken,
+    getReleaseStatus,
+    getStatusText,
+    getDownloadStatus,
+    getDownloadStateText,
+    isNotReadyToPlay,
+    createRequest,
+    getErrorText,
+    getMyRequests,
+    refreshSeries,
+    ReleaseStatus,
+    toggleSubscription as toggleSeasonSubscription,
+    showSourcePicker,
+    warnIfStoragePaused
+} from 'utils/piratefin';
 
 import 'elements/emby-itemscontainer/emby-itemscontainer';
 import 'elements/emby-checkbox/emby-checkbox';
@@ -44,6 +65,324 @@ import 'elements/emby-scroller/emby-scroller';
 import 'elements/emby-select/emby-select';
 
 import 'styles/scrollstyles.scss';
+
+import { DownloadWatcher } from './downloadWatcher';
+
+/**
+ * A PirateFin episode or movie becomes playable part way through its download. Until then Play is grey and disabled,
+ * says where the download stands (Downloading, Stalled, Queued, Paused, Download failed) and fills with red as the
+ * download gets to the point where it can play (5% downloaded with playable at 10%: half), then turns white with its
+ * usual label. The status is pushed by the server (see DownloadWatcher).
+ *
+ * A season or series' Play follows the episode it would start (the first unwatched one) when that one is downloading;
+ * otherwise it's grey (without a fill) until one of its episodes can be played.
+ */
+class PlayableChecker {
+    /**
+     * @param {Object} apiClient The api client.
+     * @param {Object} item The episode, movie, season or series.
+     * @param {boolean} isVideo Whether it's the episode / movie itself (else a season / series).
+     */
+    constructor(apiClient, item, isVideo) {
+        this.apiClient = apiClient;
+        this.item = item;
+        this.isVideo = isVideo;
+        this.watcher = null;
+        this.timer = null;
+        this.stopped = false;
+        this.status = null;
+        this.lastFill = null;
+        this.lastTime = 0;
+        this.shownFill = 0;
+    }
+
+    setReady(page, ready) {
+        for (const button of page.querySelectorAll('.btnPlay, .btnReplay')) {
+            button.disabled = !ready;
+            button.classList.toggle('pfPlay-notReady', !ready);
+        }
+    }
+
+    /**
+     * Fills Play smoothly. The server sends a new value each time qBittorrent's changes (about every 2 s); between
+     * them the fill keeps going at the speed of the last two values, over the time they were apart, so it neither
+     * races ahead nor stops and starts. It never goes backwards and stops short of full until it's playable.
+     */
+    showFill(page, fill, moving) {
+        const now = Date.now();
+        let target = fill;
+        let duration = FILL_SETTLE_MS;
+        if (this.lastFill != null && fill !== this.lastFill) {
+            const interval = Math.min(now - this.lastTime, MAX_FILL_INTERVAL_MS);
+            if (moving && fill > this.lastFill) {
+                target = Math.min(MAX_PREDICTED_FILL, fill + (fill - this.lastFill));
+                duration = interval;
+            }
+        }
+
+        if (fill !== this.lastFill) {
+            this.lastFill = fill;
+            this.lastTime = now;
+        }
+
+        this.shownFill = Math.max(this.shownFill, target);
+        for (const button of page.querySelectorAll('.btnPlay')) {
+            button.style.setProperty('--pf-play-fill-duration', `${duration}ms`);
+            button.style.setProperty('--pf-play-fill', String(this.shownFill));
+        }
+    }
+
+    /** Play's label: the download's state while it can't play, else what reloadPlayButtons set (Play / Resume). */
+    showLabel(page) {
+        const status = this.status;
+        const text = status && !status.Playable ? getDownloadStateText(status.State) : null;
+        for (const button of page.querySelectorAll('.btnPlay')) {
+            const label = button.querySelector('.pfButtonLabel');
+            if (button.dataset.pfLabel == null) {
+                button.dataset.pfLabel = label ? label.textContent : '';
+                button.dataset.pfTitle = button.title;
+            }
+
+            if (label) {
+                label.textContent = text ?? button.dataset.pfLabel;
+            }
+
+            // The real numbers on hover, to check the fill by (no hover on TVs).
+            button.title = text && !layoutManager.tv && status.Progress != null ?
+                `${formatPercent(status.Progress)} downloaded · plays at ${formatPercent(status.PlayableProgress ?? 0.1)}` :
+                button.dataset.pfTitle;
+        }
+    }
+
+    onStatus(page, status) {
+        this.status = status;
+        this.setReady(page, status.Playable);
+        if (!status.Playable) {
+            this.showFill(page, status.PlayableFill ?? 0, status.State === 'Downloading');
+        }
+        this.showLabel(page);
+
+        // A slow download (over an hour): say so once per visit.
+        if (status.Slow && !status.Playable && !this.slowShown) {
+            this.slowShown = true;
+            alert({
+                title: 'This may take a while',
+                text: 'This download is slower than usual and may take longer than usual. Come back later: you\'ll get a notification (and an email, if you have one) when it\'s ready to watch.'
+            }).catch(() => {
+                // Closed.
+            });
+        }
+    }
+
+    /** reloadPlayButtons put Play's own label back (the item changed): show the download's again. */
+    reapply(page) {
+        for (const button of page.querySelectorAll('.btnPlay')) {
+            delete button.dataset.pfLabel;
+            delete button.dataset.pfTitle;
+        }
+
+        if (this.status) {
+            this.setReady(page, this.status.Playable);
+            this.showLabel(page);
+        }
+    }
+
+    follow(page, itemId) {
+        this.watcher = new DownloadWatcher(this.apiClient, itemId, status => this.onStatus(page, status));
+        this.watcher.start();
+    }
+
+    async start(page) {
+        if (this.isVideo) {
+            this.follow(page, this.item.Id);
+            return;
+        }
+
+        // A season / series: the episode Play starts, when it's downloading.
+        try {
+            const episodeId = await getStartEpisodeId(this.apiClient, this.item);
+            const status = episodeId && await getDownloadStatus(this.apiClient, episodeId);
+            if (this.stopped) {
+                return;
+            }
+
+            if (status && !status.Playable && status.State && status.State !== 'None') {
+                this.follow(page, episodeId);
+                return;
+            }
+        } catch (err) {
+            console.warn('[PirateFin] could not find the episode Play starts', err);
+        }
+
+        if (!this.stopped) {
+            this.pollFolder(page);
+        }
+    }
+
+    /** Grey until one of the season / series' episodes can be played. */
+    async pollFolder(page) {
+        const check = async () => {
+            const status = await getDownloadStatus(this.apiClient, this.item.Id);
+            this.setReady(page, status.Playable);
+            return status.Playable;
+        };
+
+        if (await check() || this.stopped) {
+            return;
+        }
+
+        this.timer = setInterval(async () => {
+            if (await check()) {
+                clearInterval(this.timer);
+                this.timer = null;
+            }
+        }, PLAYABLE_FOLDER_POLL_MS);
+    }
+
+    stop() {
+        this.stopped = true;
+        this.watcher?.stop();
+        this.watcher = null;
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+        }
+    }
+}
+
+/** The episode Play would start on a season or series page: the first unwatched one (as the playback manager picks). */
+async function getStartEpisodeId(apiClient, item) {
+    const userId = apiClient.getCurrentUserId();
+    if (item.Type === 'Season') {
+        const result = await apiClient.getEpisodes(item.SeriesId, {
+            SeasonId: item.Id,
+            IsMissing: false,
+            IsVirtualUnaired: false,
+            UserId: userId
+        });
+        const episodes = result.Items || [];
+        return (episodes.find(e => !e.UserData?.Played) || episodes[0])?.Id;
+    }
+
+    const unplayed = await apiClient.getItems(userId, {
+        SortBy: 'SeriesSortName,SortName',
+        SortOrder: 'Ascending',
+        IncludeItemTypes: 'Episode',
+        Recursive: true,
+        IsMissing: false,
+        ParentId: item.Id,
+        Limit: 1,
+        Filters: 'IsUnplayed'
+    });
+    if (unplayed.Items?.length) {
+        return unplayed.Items[0].Id;
+    }
+
+    const first = await apiClient.getEpisodes(item.Id, { IsMissing: false, IsVirtualUnaired: false, UserId: userId, Limit: 1 });
+    return first.Items?.[0]?.Id;
+}
+
+const formatPercent = value => `${(value * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+
+const PLAYABLE_FOLDER_POLL_MS = 5000;
+/** The fill doesn't predict itself full: full means playable, which only the server says. */
+const MAX_PREDICTED_FILL = 0.97;
+/** How long the fill takes to reach a value that isn't predicted on from (first value, stalled, paused...). */
+const FILL_SETTLE_MS = 300;
+/** Predictions don't run on for longer than this (the fallback checks are 10 s apart). */
+const MAX_FILL_INTERVAL_MS = 10000;
+
+/** How often an open PirateFin page checks for changes: quickly at first, backing off while nothing changes. */
+const CHANGE_POLL_MIN_MS = 3000;
+const CHANGE_POLL_MAX_MS = 30000;
+
+/**
+ * PirateFin keeps fetching metadata and images (and adds seasons / episodes) after an item has been opened, but the
+ * page gets the item in one response. This polls the item's change token and reports which part changed.
+ */
+class ChangeWatcher {
+    constructor(getApiClient, onItemChanged, onChildrenChanged) {
+        this.getApiClient = getApiClient;
+        this.onItemChanged = onItemChanged;
+        this.onChildrenChanged = onChildrenChanged;
+        this.itemId = null;
+        this.token = null;
+        this.timer = null;
+        this.delay = CHANGE_POLL_MIN_MS;
+    }
+
+    /**
+     * @param {string} itemId The item shown.
+     * @param {Object} token The token read before the item was fetched.
+     */
+    start(itemId, token) {
+        this.stop();
+        this.itemId = itemId;
+        this.token = token;
+        this.delay = CHANGE_POLL_MIN_MS;
+        this.schedule();
+    }
+
+    schedule() {
+        clearTimeout(this.timer);
+        this.timer = setTimeout(() => this.check(), this.delay);
+    }
+
+    async check() {
+        const itemId = this.itemId;
+        let token;
+        try {
+            token = await getChangeToken(this.getApiClient(), itemId);
+        } catch (err) {
+            console.warn('[PirateFin] change check failed', err);
+        }
+
+        if (this.itemId !== itemId || !this.timer) {
+            // Stopped or paused meanwhile.
+            return;
+        }
+
+        const itemChanged = token && token.Item !== this.token.Item;
+        const childrenChanged = token && token.Children !== this.token.Children;
+        if (token) {
+            this.token = token;
+        }
+
+        this.delay = itemChanged || childrenChanged ?
+            CHANGE_POLL_MIN_MS :
+            Math.min(Math.max(this.delay * 2, CHANGE_POLL_MIN_MS), CHANGE_POLL_MAX_MS);
+        this.schedule();
+
+        try {
+            await Promise.all([
+                itemChanged && this.onItemChanged(),
+                childrenChanged && this.onChildrenChanged()
+            ]);
+        } catch (err) {
+            console.error('[PirateFin] failed to update the page', err);
+        }
+    }
+
+    /** Stops checking while the page is hidden. */
+    pause() {
+        clearTimeout(this.timer);
+        this.timer = null;
+    }
+
+    /** Checks right away, then carries on, after {@link pause}. */
+    resume() {
+        if (this.itemId && !this.timer) {
+            this.delay = 0;
+            this.schedule();
+        }
+    }
+
+    stop() {
+        this.pause();
+        this.itemId = null;
+        this.token = null;
+    }
+}
 
 /** Item types that use a list view for their children. */
 const LIST_VIEW_TYPES = [
@@ -320,37 +659,51 @@ function renderSubtitleSelections(page, mediaSources) {
 
 function reloadPlayButtons(page, item) {
     let canPlay = false;
-
+    const releaseStatus = getReleaseStatus(item);
+    // PirateFin items that haven't aired, are still searched for, or need a source chosen can't be played.
+    const awaitingRelease = releaseStatus && releaseStatus !== ReleaseStatus.Downloaded
+        && releaseStatus !== ReleaseStatus.Available && releaseStatus !== ReleaseStatus.Downloading;
     if (item.Type == 'Program') {
         const now = new Date();
-
         if (now >= datetime.parseISO8601Date(item.StartDate, true) && now < datetime.parseISO8601Date(item.EndDate, true)) {
             hideAll(page, 'btnPlay', true);
             canPlay = true;
         } else {
             hideAll(page, 'btnPlay');
         }
-
         hideAll(page, 'btnReplay');
         hideAll(page, 'btnInstantMix');
         hideAll(page, 'btnShuffle');
-    } else if (playbackManager.canPlay(item)) {
+    } else if (!awaitingRelease && playbackManager.canPlay(item)) {
         hideAll(page, 'btnPlay', true);
         const enableInstantMix = ['Audio', 'MusicAlbum', 'MusicGenre', 'MusicArtist'].indexOf(item.Type) !== -1;
         hideAll(page, 'btnInstantMix', enableInstantMix);
         const enableShuffle = item.IsFolder || ['MusicAlbum', 'MusicGenre', 'MusicArtist'].indexOf(item.Type) !== -1;
         hideAll(page, 'btnShuffle', enableShuffle);
         canPlay = true;
-
         const isResumable = item.UserData && item.UserData.PlaybackPositionTicks > 0;
         hideAll(page, 'btnReplay', isResumable);
-
         for (const btnPlay of page.querySelectorAll('.btnPlay')) {
-            if (isResumable) {
-                btnPlay.title = globalize.translate('ButtonResume');
-            } else {
-                btnPlay.title = globalize.translate('Play');
+            btnPlay.title = globalize.translate(isResumable ? 'ButtonResume' : 'Play');
+            const label = btnPlay.querySelector('.pfButtonLabel');
+            if (label) {
+                label.textContent = btnPlay.title;
             }
+        }
+
+        // Opening a PirateFin episode or movie starts its download; Play works once enough of it is on disk. A PirateFin
+        // season or series' Play works once one of its episodes can be played.
+        const isPirateFinFolder = (item.Type === 'Season' || item.Type === 'Series') && item.IsInternet;
+        const isDownloadingVideo = releaseStatus === ReleaseStatus.Available || releaseStatus === ReleaseStatus.Downloading;
+        if ((isDownloadingVideo || isPirateFinFolder) && !page._playableChecker) {
+            page._playableChecker = new PlayableChecker(ServerConnections.getApiClient(item.ServerId), item, isDownloadingVideo);
+            // Grey straight away (not white until the first check comes back) when the item says it can't play yet.
+            if (isNotReadyToPlay(item)) {
+                page._playableChecker.setReady(page, false);
+            }
+            page._playableChecker.start(page);
+        } else if (page._playableChecker) {
+            page._playableChecker.reapply(page);
         }
     } else {
         hideAll(page, 'btnPlay');
@@ -358,8 +711,74 @@ function reloadPlayButtons(page, item) {
         hideAll(page, 'btnInstantMix');
         hideAll(page, 'btnShuffle');
     }
-
     return canPlay;
+}
+
+/** Shows how many requests the user has left on the request buttons (disabled when none). */
+function updateRequestButtons(page, item) {
+    getMyRequests(ServerConnections.getApiClient(item.ServerId)).then(mine => {
+        const alreadyAsked = mine.Requests.some(r => r.Status === 'Open' && r.ItemId === item.Id);
+        for (const button of page.querySelectorAll('.btnPfRequest')) {
+            let title = 'Request download to admin';
+            if (alreadyAsked) {
+                title = 'Requested';
+            } else if (mine.Remaining === 0) {
+                title = 'You have no requests left until an admin closes one (or you cancel one from the bell)';
+            } else if (mine.Remaining > 0) {
+                title = `Request download to admin (${mine.Remaining} left)`;
+            }
+
+            button.disabled = alreadyAsked || mine.Remaining === 0;
+            button.title = title;
+        }
+    }).catch(err => {
+        console.error('[PirateFin] could not load the requests', err);
+    });
+}
+
+function renderPirateFin(page, item) {
+    const releaseStatus = getReleaseStatus(item);
+    const statusElem = page.querySelector('.pfDetailStatus');
+    if (statusElem) {
+        let text = '';
+        if (releaseStatus === ReleaseStatus.Unaired) {
+            const airDate = getAirDate(item);
+            text = airDate ? `Airs ${formatAirTime(airDate)}` : getStatusText(item);
+        } else if (releaseStatus === ReleaseStatus.ChooseSource) {
+            text = 'None of your preferred release groups has released this episode. Choose another source to download it.';
+        } else if (releaseStatus && releaseStatus !== ReleaseStatus.Downloaded && releaseStatus !== ReleaseStatus.Available
+            && releaseStatus !== ReleaseStatus.Downloading) {
+            // (Downloading: Play says where the download stands.)
+            text = getStatusText(item);
+        }
+
+        statusElem.textContent = text;
+        statusElem.className = `pfDetailStatus pfDetailStatus-${releaseStatus || 'None'}${text ? '' : ' hide'}`;
+    }
+
+    hideAll(page, 'btnChooseSource', releaseStatus === ReleaseStatus.ChooseSource);
+    // Also for series the user added: refreshing adds the missing episodes and makes them PirateFin series.
+    hideAll(page, 'btnPfRefresh', item.Type === 'Series' || item.Type === 'Season');
+
+    // Episodes PirateFin gave up on, and seasons (their missing episodes), can be requested from an admin.
+    const canRequest = (item.Type === 'Episode' && releaseStatus === ReleaseStatus.NotFound) || (item.Type === 'Season' && item.IsInternet === true);
+    hideAll(page, 'btnPfRequest', canRequest);
+    if (canRequest) {
+        updateRequestButtons(page, item);
+    }
+
+    const canSubscribe = itemHelper.supportsSubscribingToSeason(item);
+    hideAll(page, 'btnSubscribe', canSubscribe);
+    if (canSubscribe) {
+        for (const btn of page.querySelectorAll('.btnSubscribe')) {
+            const subscribed = item.IsSubscribed === true;
+            btn.title = subscribed ? 'Unsubscribe from season' : globalize.translate('SubscribeToSeason');
+            btn.classList.toggle('pfButton-active', subscribed);
+            const icon = btn.querySelector('.material-icons');
+            icon.classList.remove('notifications_none', 'notifications_active');
+            icon.classList.add(subscribed ? 'notifications_active' : 'notifications_none');
+        }
+    }
 }
 
 function reloadUserDataButtons(page, item) {
@@ -512,7 +931,8 @@ function renderBackdrop(page, item) {
         // If backdrops are disabled, but the header banner is enabled, add a class to the page to disable the transparency
         page.classList.toggle('noBackdropTransparency', isBannerEnabled && !userSettings.enableBackdrops());
 
-        setBackdrops([item], null, isBannerEnabled);
+        // PirateFin: TV always shows the item's backdrop behind the page when it has one (setBackdrops clears it otherwise).
+        setBackdrops([item], null, isBannerEnabled || layoutManager.tv);
     } else {
         clearBackdrop();
     }
@@ -570,6 +990,7 @@ function reloadFromItem(instance, page, params, item, user) {
     renderTimerEditor(page, item, apiClient, user);
     setInitialCollapsibleState(page, item, apiClient, params.context, user);
     const canPlay = reloadPlayButtons(page, item);
+    renderPirateFin(page, item);
 
     setTrailerButtonVisibility(page, item);
 
@@ -663,6 +1084,49 @@ function reloadFromItem(instance, page, params, item, user) {
     }
 
     autoFocus(page);
+}
+
+/**
+ * Updates what the page shows about the item itself after it was saved again on the server (PirateFin metadata /
+ * images arriving), leaving its lists (seasons, episodes, similar items) and the focus alone.
+ */
+function renderItemInfo(page, item, previous, apiClient, context, user) {
+    if (!isEqual(item.ImageTags, previous?.ImageTags) || !isEqual(item.BackdropImageTags, previous?.BackdropImageTags)) {
+        renderImage(page, item, apiClient);
+        renderLogo(page, item, apiClient);
+        if (layoutManager.mobile) {
+            renderHeaderBackdrop(page, item, apiClient);
+        }
+        renderBackdrop(page, item);
+    }
+
+    renderName(item, page.querySelector('.nameContainer'), context);
+    renderDirector(page, item, context);
+    renderStudio(page, item, context);
+    renderWriter(page, item, context);
+    renderGenres(page, item, context);
+    renderTagline(page, item);
+    renderOverview(page, item);
+    renderMiscInfo(page, item);
+    if (!layoutManager.tv && appHost.supports(AppFeature.ExternalLinks)) {
+        renderLinks(page, item);
+    }
+    renderTags(page, item);
+    renderSeriesAirTime(page, item);
+    reloadPlayButtons(page, item);
+    renderPirateFin(page, item);
+    setTrailerButtonVisibility(page, item);
+
+    if (!isEqual(item.People, previous?.People)) {
+        renderCast(page, item, (item.People || []).filter(p => p.Type !== PersonKind.GuestStar));
+        renderGuestCast(page, item, (item.People || []).filter(p => p.Type === PersonKind.GuestStar));
+    }
+
+    if (user) {
+        itemContextMenu.getCommands(getContextMenuOptions(item, user)).then(commands => {
+            hideAll(page, 'btnMoreCommands', commands.length > 0);
+        });
+    }
 }
 
 function logoImageUrl(item, apiClient, options) {
@@ -1354,7 +1818,6 @@ function renderTags(page, item) {
 function renderChildren(page, item) {
     const childrenCollapsible = page.querySelector(LIST_VIEW_TYPES.includes(item.Type) ? '#listChildrenCollapsible' : '#childrenCollapsible');
     const childrenItemsContainer = childrenCollapsible.querySelector('.itemsContainer');
-
     let fields = 'ItemCounts,PrimaryImageAspectRatio,CanDelete,MediaSourceCount';
     const query = {
         ParentId: item.Id,
@@ -1388,7 +1851,7 @@ function renderChildren(page, item) {
     }
 
     promise = promise || apiClient.getItems(apiClient.getCurrentUserId(), query);
-    promise.then(function (result) {
+    const rendered = promise.then(function (result) {
         let html = '';
         let scrollX = false;
         let isList = false;
@@ -1536,6 +1999,8 @@ function renderChildren(page, item) {
     } else {
         childrenCollapsible.querySelector('.sectionTitle').classList.remove('hide');
     }
+
+    return rendered;
 }
 
 function renderItemsByName(page, item) {
@@ -1925,14 +2390,90 @@ export default function (view, params) {
 
     function reload(instance, page, pageParams) {
         loading.show();
+        changeWatcher.stop();
 
         const apiClient = getApiClient();
 
-        Promise.all([getPromise(apiClient, pageParams), apiClient.getCurrentUser()]).then(([item, user]) => {
+        // The change token is read before the item so nothing saved in between is missed.
+        const tokenPromise = pageParams.id ? getChangeToken(apiClient, pageParams.id).catch(() => null) : Promise.resolve(null);
+        tokenPromise.then(token => Promise.all([getPromise(apiClient, pageParams), apiClient.getCurrentUser(), token])).then(([item, user, token]) => {
             currentItem = item;
+            currentUser = user;
             reloadFromItem(instance, page, pageParams, item, user);
+
+            // PirateFin items keep getting metadata, images, seasons and episodes after the page has opened.
+            if (item.IsInternet && token) {
+                changeWatcher.start(item.Id, token);
+            }
+
+            // Opening a ready item starts its download; when storage is full it waits instead, so say so (once per visit).
+            if (getReleaseStatus(item) === ReleaseStatus.Available && storageWarnedFor !== item.Id) {
+                storageWarnedFor = item.Id;
+                warnIfStoragePaused(apiClient, item.Id);
+            }
+
+            // Opening an episode whose preferred release groups never released it goes straight to the source picker (once per visit).
+            if (getReleaseStatus(item) === ReleaseStatus.ChooseSource && sourcePickerShownFor !== item.Id) {
+                sourcePickerShownFor = item.Id;
+                chooseSource(instance, page, pageParams);
+            }
         }).catch((error) => {
             console.error('failed to get item or current user: ', error);
+        });
+    }
+
+    function chooseSource(instance, page, pageParams) {
+        showSourcePicker(getApiClient(), currentItem, page.querySelector('.btnChooseSource:not(.hide)')).then(chosen => {
+            if (chosen) {
+                reload(instance, page, pageParams);
+            }
+        }).catch(err => {
+            console.error('[PirateFin] failed to choose a source', err);
+        });
+    }
+
+    function toggleSubscription(instance, page, pageParams, anchor) {
+        toggleSeasonSubscription(getApiClient(), currentItem, anchor).then(changed => {
+            if (changed) {
+                reload(instance, page, pageParams);
+            }
+        }).catch(err => {
+            console.error('[PirateFin] failed to change the subscription', err);
+        });
+    }
+
+    function requestFromAdmin(page) {
+        const item = currentItem;
+        const what = item.Type === 'Season' ? `the missing episodes of ${item.SeriesName} ${item.Name}` : `${item.SeriesName} ${item.Name}`;
+        confirm({
+            title: 'Request download',
+            text: `Ask an admin to find ${what}? It counts as one of your requests until an admin closes it.`,
+            confirmText: 'Request'
+        }).then(() => createRequest(getApiClient(), item.Id).then(() => {
+            toast('Sent to the admins. You can follow it from the bell next to your profile.');
+            updateRequestButtons(page, item);
+        }, async err => {
+            toast(await getErrorText(err) || 'Could not send the request.');
+        }), () => {
+            // Cancelled.
+        });
+    }
+
+    function refreshFromInternet(instance, page, pageParams) {
+        loading.show();
+        refreshSeries(getApiClient(), currentItem.Id).then(result => {
+            const added = [
+                result.SeasonsAdded && `${result.SeasonsAdded} ${result.SeasonsAdded === 1 ? 'season' : 'seasons'}`,
+                result.EpisodesAdded && `${result.EpisodesAdded} ${result.EpisodesAdded === 1 ? 'episode' : 'episodes'}`
+            ].filter(Boolean);
+            const done = added.length ? `Added ${added.join(' and ')}` : 'Nothing was missing';
+            // From a season, the series' other seasons are still being added in the background.
+            toast(currentItem.Type === 'Season' ? `${done} to this season; the other seasons are being filled in` : done);
+            reload(instance, page, pageParams);
+        }).catch(err => {
+            console.error('[PirateFin] failed to refresh the series', err);
+            toast('Could not find this series on Trakt / AniList.');
+            loading.hide();
         });
     }
 
@@ -2089,12 +2630,60 @@ export default function (view, params) {
         }
     }
 
+    /** The item itself was saved again: fetch it and update the parts of the page that show it, not its lists. */
+    async function onItemChanged() {
+        const apiClient = getApiClient();
+        const previous = currentItem;
+        const item = await getPromise(apiClient, params);
+        if (!currentItem || currentItem.Id !== item.Id) {
+            return;
+        }
+
+        currentItem = item;
+        renderItemInfo(view, item, previous, apiClient, params.context, currentUser);
+
+        // Season cards without artwork of their own show the series poster.
+        if (item.Type === BaseItemKind.Series && !isEqual(item.ImageTags, previous?.ImageTags)) {
+            await onChildrenChanged();
+        }
+
+        if (!item.IsInternet) {
+            // Downloaded: nothing more will be filled in.
+            changeWatcher.stop();
+        }
+    }
+
+    /** Seasons / episodes were added or got metadata: render the list again, keeping the focused card focused. */
+    async function onChildrenChanged() {
+        if (!currentItem) {
+            return;
+        }
+
+        const focusedId = document.activeElement?.closest?.('.itemsContainer [data-id]')?.getAttribute('data-id');
+        await renderChildren(view, currentItem);
+
+        if (focusedId) {
+            const elem = view.querySelector(`.itemsContainer [data-id="${focusedId}"]`);
+            if (elem) {
+                focusManager.focus(elem);
+            }
+        }
+    }
+
     let currentItem;
+    let currentUser;
+    let sourcePickerShownFor = null;
+    let storageWarnedFor = null;
     const self = this;
+    const changeWatcher = new ChangeWatcher(getApiClient, onItemChanged, onChildrenChanged);
 
     function init() {
         const apiClient = getApiClient();
 
+        bindAll(view, '.btnChooseSource', 'click', () => chooseSource(self, view, params));
+        bindAll(view, '.btnSubscribe', 'click', e => toggleSubscription(self, view, params, e.currentTarget));
+        bindAll(view, '.btnPfRefresh', 'click', () => refreshFromInternet(self, view, params));
+        bindAll(view, '.btnPfRequest', 'click', () => requestFromAdmin(view));
         bindAll(view, '.btnPlay', 'click', onPlayClick);
         bindAll(view, '.btnReplay', 'click', onPlayClick);
         bindAll(view, '.btnInstantMix', 'click', onInstantMixClick);
@@ -2124,6 +2713,9 @@ export default function (view, params) {
                     libraryMenu.setTitle('');
                     renderTrackSelections(page, self, currentItem, true);
                     renderBackdrop(page, currentItem);
+
+                    // Checks right away for anything saved while the page was hidden.
+                    changeWatcher.resume();
                 }
             } else {
                 reload(self, page, params);
@@ -2139,11 +2731,23 @@ export default function (view, params) {
             Events.off(apiClient, 'message', onWebSocketMessage);
             Events.off(playbackManager, 'playerchange', onPlayerChange);
             libraryMenu.setTransparentMenu(false);
+            changeWatcher.pause();
+
+            if (view._playableChecker) {
+                view._playableChecker.stop();
+                view._playableChecker = null;
+            }
         });
         view.addEventListener('viewdestroy', function () {
+            changeWatcher.stop();
             currentItem = null;
             self._currentPlaybackMediaSources = null;
             self.currentRecordingFields = null;
+
+            if (view._playableChecker) {
+                view._playableChecker.stop();
+                view._playableChecker = null;
+            }
         });
     }
 

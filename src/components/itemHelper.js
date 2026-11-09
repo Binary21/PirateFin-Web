@@ -55,6 +55,11 @@ export function getDisplayName(item, options = {}) {
     return name;
 }
 
+/** PirateFin seasons (and their episodes) can be subscribed so new episodes download automatically. */
+export function supportsSubscribingToSeason(item) {
+    return (item.Type === 'Season' || item.Type === 'Episode') && item.IsSubscribed != null && !isLocalItem(item);
+}
+
 export function supportsAddingToCollection(item) {
     const invalidTypes = ['Genre', 'MusicGenre', 'Studio', 'UserView', 'CollectionFolder', 'Audio', 'Program', 'Timer', 'SeriesTimer'];
 
@@ -361,6 +366,7 @@ export default {
     getDisplayName: getDisplayName,
     supportsAddingToCollection: supportsAddingToCollection,
     supportsAddingToPlaylist: supportsAddingToPlaylist,
+    supportsSubscribingToSeason: supportsSubscribingToSeason,
     isLocalItem: isLocalItem,
     canIdentify: canIdentify,
     canEdit: canEdit,

@@ -21,6 +21,22 @@ export const ForgotPasswordPage = () => {
             if (!currentApi) {
                 throw new Error('API not available');
             }
+
+            // PirateFin: users with an email address get a temporary password by email, from anywhere.
+            const emailed = await currentApi.axiosInstance.post<{ Emailed: boolean }>(
+                `${currentApi.basePath}/PirateFin/ForgotPassword`,
+                { Username: enteredUsername }
+            ).then(r => r.data.Emailed, (err: unknown) => {
+                const message = (err as { response?: { data?: unknown } })?.response?.data;
+                if (typeof message === 'string' && message) {
+                    throw new Error(message);
+                }
+                return false;
+            });
+            if (emailed) {
+                return { Emailed: true } as const;
+            }
+
             const response = await getUserApi(currentApi).forgotPassword({
                 forgotPasswordDto: {
                     EnteredUsername: enteredUsername
@@ -30,6 +46,14 @@ export const ForgotPasswordPage = () => {
             return response.data;
         },
         onSuccess: (result) => {
+            if ('Emailed' in result) {
+                // The same answer whether or not the profile exists (away from home the server always says emailed).
+                return alert({
+                    text: 'If this profile has an email address, a temporary password is on its way. Sign in with it within 30 minutes; you\'ll then choose a new password. No email? Ask your admin, or reset it from the home network.',
+                    title: globalize.translate('ButtonForgotPassword')
+                }).then(() => navigate(-1));
+            }
+
             let msg = '';
             let callback: () => void | undefined = () => undefined;
 
@@ -58,6 +82,12 @@ export const ForgotPasswordPage = () => {
                 title: globalize.translate('ButtonForgotPassword')
             }).then(() => {
                 if (callback) callback();
+            });
+        },
+        onError: (err) => {
+            void alert({
+                text: err instanceof Error ? err.message : String(err),
+                title: globalize.translate('ButtonForgotPassword')
             });
         }
     });

@@ -1,0 +1,94 @@
+.pfInternetSearch {
+    padding-bottom: 2em;
+}
+
+.pfSearchRow-message {
+    padding: 0.5em 3.3%;
+    opacity: 0.7;
+}
+
+.pfSearchRow-items {
+    display: flex;
+    gap: 0.6em;
+    overflow-x: auto;
+    padding: 0.8em 3.3% 1.2em;
+    scroll-snap-type: x proximity;
+}
+
+.pfSearchCard {
+    flex: 0 0 auto;
+    width: 10em;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    scroll-snap-align: start;
+    transition: transform 0.2s ease;
+
+    &:hover,
+    &:focus {
+        transform: scale(1.06);
+        outline: none;
+    }
+
+    &:focus .pfSearchCard-image {
+        box-shadow: 0 0 0 0.18em #fff;
+    }
+}
+
+.layout-tv .pfSearchCard {
+    width: 12em;
+}
+
+.pfSearchCard-image {
+    position: relative;
+    aspect-ratio: 2 / 3;
+    border-radius: 0.25em;
+    overflow: hidden;
+    background: #2f2f2f;
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+}
+
+.pfSearchCard-noImage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 0.5em;
+    text-align: center;
+    font-weight: 600;
+}
+
+.pfSearchCard-badge {
+    position: absolute;
+    top: 0.4em;
+    left: 0.4em;
+    padding: 0.15em 0.45em;
+    border-radius: 0.2em;
+    background: #e50914;
+    color: #fff;
+    font-size: 0.75em;
+    font-weight: 700;
+}
+
+.pfSearchCard-title {
+    margin-top: 0.45em;
+    font-size: 0.95em;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.pfSearchCard-year {
+    font-size: 0.8em;
+    opacity: 0.6;
+}

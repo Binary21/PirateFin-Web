@@ -7,12 +7,58 @@
     z-index: 10000;
 }
 
-.skip-button {
+// The whole skip control: the ^, the second option and the button, shown and hidden together.
+.pfSkip {
+    display: flex;
+    justify-content: flex-end;
+    margin-right: 6rem;
+    transition: opacity 200ms ease-out;
+}
+
+// Outline around both buttons, only while the second option is open.
+.pfSkip-box {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4em;
+    padding: 0.4em;
+    border: 0.12em solid transparent;
+    border-radius: 0.4em;
+    pointer-events: auto;
+    transition: border-color 150ms ease-out;
+}
+
+.pfSkip-expanded .pfSkip-box {
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+// The ^ above the button: press Up (TV) or click it for the second option.
+.pfSkip-arrow {
+    align-self: center;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #fff;
+    line-height: 1;
+    opacity: 0.85;
+    cursor: pointer;
+
+    .material-icons {
+        font-size: 1.8em;
+    }
+
+    .pfSkip-expanded & {
+        display: none;
+    }
+}
+
+.skip-button,
+.pfSkip-secondary {
     display: flex;
     align-items: center;
-    margin-left: auto;
-    margin-right: 6rem;
-    z-index: 10000;
+    justify-content: center;
+    margin: 0;
     padding: 12px 20px;
     background-color: #303030;
     color: rgba(255, 255, 255, 0.87);
@@ -20,10 +66,32 @@
     border-radius: 0.2em;
     font-weight: bold;
     font-size: 1.2em;
-    transition: opacity 200ms ease-out;
     gap: 3px;
     cursor: pointer;
-    pointer-events: auto;
+    transition: background-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.pfSkip-secondary {
+    display: none;
+
+    .pfSkip-expanded & {
+        display: flex;
+    }
+}
+
+// The selected button: slightly highlighted.
+.skip-button:hover,
+.skip-button:focus,
+.pfSkip-secondary:hover,
+.pfSkip-secondary:focus {
+    background-color: #4a4a4a;
+    color: #fff;
+    outline: none;
+}
+
+.skip-button:focus,
+.pfSkip-secondary:focus {
+    box-shadow: 0 0 0 0.12em rgba(255, 255, 255, 0.85);
 }
 
 .no-transition {

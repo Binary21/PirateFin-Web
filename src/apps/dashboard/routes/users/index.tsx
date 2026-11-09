@@ -16,6 +16,7 @@ import '../../../../styles/flexstyles.scss';
 import Page from '../../../../components/Page';
 import { useLocation } from 'react-router-dom';
 import Toast from 'apps/dashboard/components/Toast';
+import { useUserInsightSummaries } from 'apps/dashboard/features/piratefin/api/pirateFinApi';
 
 type MenuEntry = {
     name?: string;
@@ -27,6 +28,7 @@ const UserProfiles = () => {
     const location = useLocation();
     const [ isSettingsSavedToastOpen, setIsSettingsSavedToastOpen ] = useState(false);
     const [ users, setUsers ] = useState<UserDto[]>([]);
+    const { data: summaries } = useUserInsightSummaries();
 
     const element = useRef<HTMLDivElement>(null);
 
@@ -193,7 +195,7 @@ const UserProfiles = () => {
 
                 <div className='localUsers itemsContainer vertical-wrap'>
                     {users.map(user => {
-                        return <UserCardBox key={user.Id} user={user} />;
+                        return <UserCardBox key={user.Id} user={user} summary={summaries?.find(s => s.UserId === user.Id)} />;
                     })}
                 </div>
             </div>

@@ -26,6 +26,7 @@ export interface ParametersOptions {
 export enum SectionApiMethod {
     ResumeItems = 'resumeItems',
     LatestMedia = 'latestMedia',
+    NewestMedia = 'newestMedia',
     NextUp = 'nextUp',
     RecommendedPrograms = 'RecommendedPrograms',
     LiveTvPrograms = 'liveTvPrograms',
@@ -36,6 +37,7 @@ export enum SectionApiMethod {
 export enum SectionType {
     ContinueWatchingMovies = 'continuewatchingmovies',
     LatestMovies = 'latestmovies',
+    NewestMovies = 'newestmovies',
     ContinueWatchingEpisode = 'continuewatchingepisode',
     LatestEpisode = 'latestepisode',
     NextUp = 'nextUp',
@@ -66,7 +68,8 @@ export interface Section {
 export const MovieSuggestionsSectionsView: SectionsView = {
     suggestionSections: [
         SectionType.ContinueWatchingMovies,
-        SectionType.LatestMovies
+        SectionType.LatestMovies,
+        SectionType.NewestMovies
     ],
     isMovieRecommendations: true
 };

@@ -134,13 +134,19 @@ export function loadRecentlyAdded(
     apiClient: ApiClient,
     user: UserDto,
     userViews: BaseItemDto[],
-    options: SectionOptions
+    options: SectionOptions,
+    type?: string
 ) {
     elem.classList.remove('verticalSection');
     const excludeViewTypes = ['playlists', 'livetv', 'boxsets', 'channels', 'folders'];
     const userExcludeItems = user.Configuration?.LatestItemsExcludes ?? [];
 
     userViews.forEach(item => {
+        // A Movies / Shows / Anime tab only shows its own library.
+        if (type && item.Name?.toLowerCase() !== type) {
+            return;
+        }
+
         if (!item.Id || userExcludeItems.includes(item.Id)) {
             return;
         }

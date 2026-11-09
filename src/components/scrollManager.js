@@ -41,7 +41,8 @@ try {
     const opts = Object.defineProperty({}, 'behavior', {
         get: function () {
             supportsScrollToOptions = true;
-            return null;
+            // A valid value: null makes scrollTo throw, which the dev server reports as an uncaught error.
+            return 'auto';
         }
     });
 

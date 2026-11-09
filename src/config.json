@@ -13,12 +13,16 @@
     }, {
       "name": "Dark",
       "id": "dark",
-      "color": "#202020",
-      "default": true
+      "color": "#202020"
     }, {
       "name": "Light",
       "id": "light",
       "color": "#303030"
+    }, {
+      "name": "PirateFin",
+      "id": "piratefin",
+      "color": "#141414",
+      "default": true
     }, {
       "name": "Purple Haze",
       "id": "purplehaze",

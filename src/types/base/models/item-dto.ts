@@ -12,6 +12,8 @@ type VirtualFolder = Omit<VirtualFolderInfo, 'CollectionType'>;
 
 export interface ItemDto extends BaseItem, TimerInfo, SeriesTimerInfo, SearchHintItem, UserItem, VirtualFolder {
     'ChannelId'?: string | null;
+    'FirstAired'?: string | null;
+    'IsDownloadable'?: boolean;
     'EndDate'?: string | null;
     'Id'?: string | null;
     'StartDate'?: string | null;

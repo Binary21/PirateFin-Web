@@ -1,5 +1,6 @@
 import datetime from '../../scripts/datetime';
 import itemHelper from '../itemHelper';
+import { getReleaseStatus, getStatusBadgeHtml } from 'utils/piratefin';
 import '../../elements/emby-progressbar/emby-progressbar';
 import './indicators.scss';
 import 'material-design-icons-iconfont';
@@ -150,6 +151,11 @@ export function getTypeIndicator(item) {
 }
 
 export function getMissingIndicator(item) {
+    // PirateFin placeholders are virtual until downloaded but are never "missing"; show where they are instead.
+    if (getReleaseStatus(item)) {
+        return getStatusBadgeHtml(item);
+    }
+
     if (item.Type === 'Episode' && item.LocationType === 'Virtual') {
         if (item.PremiereDate) {
             try {

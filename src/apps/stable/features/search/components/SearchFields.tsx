@@ -10,11 +10,13 @@ import './searchfields.scss';
 
 interface SearchFieldsProps {
     query: string,
-    onSearch?: (query: string) => void
+    onSearch?: (query: string) => void,
+    onEnter?: (query: string) => void
 }
 
 const SearchFields: FC<SearchFieldsProps> = ({
     onSearch = () => { /* no-op */ },
+    onEnter = () => { /* no-op */ },
     query
 }) => {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -33,6 +35,12 @@ const SearchFields: FC<SearchFieldsProps> = ({
     const onChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
         onSearch(e.target.value);
     }, [ onSearch ]);
+
+    const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            onEnter(e.currentTarget.value);
+        }
+    }, [onEnter]);
 
     return (
         <div className='padded-left padded-right searchFields'>
@@ -55,6 +63,7 @@ const SearchFields: FC<SearchFieldsProps> = ({
                         autoFocus
                         value={query}
                         onChange={onChange}
+                        onKeyDown={onKeyDown}
                     />
                 </div>
             </div>

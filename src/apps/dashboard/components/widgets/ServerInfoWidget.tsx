@@ -10,6 +10,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import { useSystemInfo } from 'hooks/useSystemInfo';
+import RefreshLatestButtons from '../../features/piratefin/components/RefreshLatestButtons';
 
 type ServerInfoWidgetProps = {
     onScanLibrariesClick?: () => void;
@@ -89,6 +90,8 @@ const ServerInfoWidget = ({ onScanLibrariesClick, onRestartClick, onShutdownClic
                         {globalize.translate('ButtonShutdown')}
                     </Button>
                 </Stack>
+
+                <RefreshLatestButtons />
             </Stack>
         </Widget>
     );

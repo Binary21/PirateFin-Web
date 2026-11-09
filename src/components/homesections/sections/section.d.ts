@@ -9,4 +9,5 @@ export type SectionContainerElement = {
     fetchData: () => Promise<BaseItemDtoQueryResult | BaseItemDto[]>
     getItemsHtml: (items: BaseItemDto[]) => void
     parentContainer: HTMLElement
+    afterRefresh?: (result: BaseItemDtoQueryResult | BaseItemDto[]) => void
 } & Element;

@@ -5,6 +5,9 @@ import { getDefaultTheme, getThemes as getConfiguredThemes } from './settings/we
 
 let currentThemeId;
 
+/** PirateFin: kids profiles always get this theme, whatever theme is chosen in the settings. */
+const KIDS_THEME = 'purplehaze';
+
 function getThemes() {
     return getConfiguredThemes();
 }
@@ -27,7 +30,10 @@ function getThemeStylesheetInfo(id) {
     });
 }
 
-function setTheme(id) {
+function setTheme(requestedId) {
+    // A kids profile is marked on <html> by applyKidsProfile (utils/piratefin).
+    const id = document.documentElement.classList.contains('pfKids') ? KIDS_THEME : requestedId;
+
     return new Promise(function (resolve) {
         if (currentThemeId && currentThemeId === id) {
             resolve();

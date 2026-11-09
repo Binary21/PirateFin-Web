@@ -13,6 +13,8 @@ import SectionTabs from '../../../../components/dashboard/users/SectionTabs';
 import loading from '../../../../components/loading/loading';
 import SelectElement from '../../../../elements/SelectElement';
 import Page from '../../../../components/Page';
+import { getUserRequestLimit, setUserRequestLimit } from '../../../../utils/piratefin';
+import KidsAndPinSettings from '../../features/piratefin/components/KidsAndPinSettings';
 
 type ResetProvider = BaseItemDto & {
     checkedAttribute: string
@@ -162,6 +164,13 @@ const UserEdit = () => {
         (page.querySelector('#txtLoginAttemptsBeforeLockout') as HTMLInputElement).value = String(user.Policy?.LoginAttemptsBeforeLockout) || '-1';
         (page.querySelector('#txtMaxActiveSessions') as HTMLInputElement).value = String(user.Policy?.MaxActiveSessions) || '0';
         (page.querySelector('#selectSyncPlayAccess') as HTMLSelectElement).value = String(user.Policy?.SyncPlayAccess);
+        if (user.Id) {
+            getUserRequestLimit(window.ApiClient, user.Id).then(limit => {
+                (page.querySelector('#txtPirateFinRequestLimit') as HTMLInputElement).value = limit == null ? '' : String(limit);
+            }).catch(err => {
+                console.error('[useredit] failed to load request limit', err);
+            });
+        }
         loading.hide();
     }, [loadAuthProviders, loadPasswordResetProviders, loadDeleteFolders ]);
 
@@ -215,8 +224,13 @@ const UserEdit = () => {
             user.Policy.EnableContentDeletionFromFolders = user.Policy.EnableContentDeletion ? [] : getCheckedElementDataIds(page.querySelectorAll('.chkFolder'));
             user.Policy.SyncPlayAccess = (page.querySelector('#selectSyncPlayAccess') as HTMLSelectElement).value as SyncPlayUserAccessType;
 
+            const requestLimitText = (page.querySelector('#txtPirateFinRequestLimit') as HTMLInputElement).value.trim();
+            const requestLimit = requestLimitText ? parseInt(requestLimitText, 10) : null;
+
             window.ApiClient.updateUser(user).then(() => (
                 window.ApiClient.updateUserPolicy(user.Id || '', user.Policy || { PasswordResetProviderId: '', AuthenticationProviderId: '' })
+            )).then(() => (
+                setUserRequestLimit(window.ApiClient, user.Id || '', requestLimit == null || isNaN(requestLimit) ? null : requestLimit)
             )).then(() => {
                 navigate('/dashboard/users', {
                     state: { openSavedToast: true }
@@ -545,6 +559,21 @@ const UserEdit = () => {
                         </div>
                     </div>
                     <br />
+                    <div className='verticalSection'>
+                        <div className='inputContainer'>
+                            <Input
+                                type='number'
+                                id='txtPirateFinRequestLimit'
+                                label='PirateFin request limit'
+                                min={-1} step={1}
+                            />
+                            <div className='fieldDescription'>
+                                How many download requests this user can have open at a time. Leave blank to use the default
+                                (set on the PirateFin Requests page), or -1 for no limit.
+                            </div>
+                        </div>
+                    </div>
+                    <br />
                     <div>
                         <Button
                             type='submit'
@@ -559,6 +588,7 @@ const UserEdit = () => {
                         />
                     </div>
                 </form>
+                {userId && <KidsAndPinSettings userId={userId} />}
             </div>
         </Page>
 

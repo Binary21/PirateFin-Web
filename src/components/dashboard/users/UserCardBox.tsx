@@ -9,6 +9,15 @@ import { getDefaultBackgroundClass } from '../../cardbuilder/cardBuilderUtils';
 
 type IProps = {
     user?: UserDto;
+    /** PirateFin: watch time this week and top genre. */
+    summary?: { Seconds7: number; TopGenre?: string | null };
+};
+
+const formatWeek = (seconds: number) => {
+    const minutes = Math.round(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const time = hours ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
+    return `${time} this week`;
 };
 
 const getLastSeenText = (lastActivityDate?: string | null) => {
@@ -19,7 +28,7 @@ const getLastSeenText = (lastActivityDate?: string | null) => {
     return '';
 };
 
-const UserCardBox: FunctionComponent<IProps> = ({ user = {} }: IProps) => {
+const UserCardBox: FunctionComponent<IProps> = ({ user = {}, summary }: IProps) => {
     let cssClass = 'card squareCard scalableCard squareCard-scalable';
 
     if (user.Policy?.IsDisabled) {
@@ -77,6 +86,11 @@ const UserCardBox: FunctionComponent<IProps> = ({ user = {} }: IProps) => {
                     <div className='cardText cardText-secondary'>
                         <span>{lastSeen != '' ? lastSeen : ''}</span>
                     </div>
+                    {summary && (
+                        <div className='cardText cardText-secondary'>
+                            <span>{formatWeek(summary.Seconds7)}{summary.TopGenre ? ` · ${summary.TopGenre}` : ''}</span>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

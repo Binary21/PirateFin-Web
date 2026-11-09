@@ -1,3 +1,12 @@
+// TV layout dropdown (inline option): a compact panel instead of a full screen sheet.
+.actionsheet-tvDropdown {
+    min-width: 18em;
+    max-width: 40em;
+    max-height: 70vh;
+    border-radius: 0.4em;
+    box-shadow: 0 0.5em 2em rgba(0, 0, 0, 0.7);
+}
+
 .actionSheet {
     display: flex;
     justify-content: center;

@@ -22,7 +22,9 @@ module.exports = merge(common, {
         client: {
             overlay: {
                 errors: true,
-                warnings: false
+                warnings: false,
+                // A menu closed with Back / by navigating away rejects its promise; that's a cancel, not an error.
+                runtimeErrors: (error) => !error?.message?.includes('ActionSheet closed without resolving')
             }
         }
     }

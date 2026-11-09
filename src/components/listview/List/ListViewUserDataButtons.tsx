@@ -5,6 +5,8 @@ import itemHelper from '../../itemHelper';
 import PlayedButton from 'elements/emby-playstatebutton/PlayedButton';
 import FavoriteButton from 'elements/emby-ratingbutton/FavoriteButton';
 import PlaylistAddIconButton from '../../common/PlaylistAddIconButton';
+import SubscribeToSeasonIconButton from '../../common/SubscribeToSeasonIconButton';
+import type { PirateFinItem } from 'utils/piratefin';
 import InfoIconButton from '../../common/InfoIconButton';
 import RightIconButtons from '../../common/RightIconButtons';
 import MoreVertIconButton from '../../common/MoreVertIconButton';
@@ -39,9 +41,17 @@ const ListViewUserDataButtons: FC<ListViewUserDataButtonsProps> = ({
     return (
         <Box className='listViewUserDataButtons'>
             {listOptions.addToListButton && (
-                <PlaylistAddIconButton
-                    className='paper-icon-button-light listItemButton itemAction'
-                />
+                <>
+                    <PlaylistAddIconButton
+                        className='paper-icon-button-light listItemButton itemAction'
+                    />
+                    {itemHelper.supportsSubscribingToSeason(item) && (
+                        <SubscribeToSeasonIconButton
+                            className='paper-icon-button-light listItemButton itemAction'
+                            subscribed={(item as PirateFinItem).IsSubscribed === true}
+                        />
+                    )}
+                </>
 
             )}
             {listOptions.infoButton && (

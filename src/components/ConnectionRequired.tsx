@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { ApiClient, ConnectResponse } from 'jellyfin-apiclient';
 
 import { ConnectionState, ServerConnections } from 'lib/jellyfin-apiclient';
+import { getProfiles, isProfileChosen } from 'utils/profiles';
 
 import ConnectionErrorPage from './ConnectionErrorPage';
 import Loading from './loading/LoadingComponent';
@@ -23,6 +24,7 @@ type AccessLevelValue = `${AccessLevel}`;
 enum BounceRoutes {
     Home = '/home',
     Login = '/login',
+    Profiles = '/profiles',
     SelectServer = '/selectserver',
     StartWizard = '/wizard/start'
 }
@@ -188,7 +190,21 @@ const ConnectionRequired: FunctionComponent<ConnectionRequiredProps> = ({
         const connection = Promise.resolve(ServerConnections.firstConnection ? null : ServerConnections.connect());
         connection.then(firstConnection => {
             console.debug('[ConnectionRequired] connection state', firstConnection?.State);
+            const isFirstLoad = !ServerConnections.firstConnection;
             ServerConnections.firstConnection = true;
+
+            // PirateFin: when the app opens with remembered profiles, start on "Who's watching?".
+            if (
+                isFirstLoad
+                && level !== AccessLevel.Wizard
+                && location.pathname !== BounceRoutes.Profiles
+                && !ERROR_STATES.includes(firstConnection?.State)
+                && !isProfileChosen()
+                && getProfiles().length > 0
+            ) {
+                navigate(BounceRoutes.Profiles);
+                return;
+            }
 
             if (ERROR_STATES.includes(firstConnection?.State)) {
                 setErrorState(firstConnection.State);
@@ -213,6 +229,7 @@ const ConnectionRequired: FunctionComponent<ConnectionRequiredProps> = ({
         }).catch(err => {
             console.error('[ConnectionRequired] failed to connect', err);
         });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [handleIncompleteWizard, handleWizard, level, validateUserAccess]);
 
     if (errorState) {

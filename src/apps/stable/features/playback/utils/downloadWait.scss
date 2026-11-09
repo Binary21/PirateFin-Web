@@ -1,0 +1,33 @@
+// "Waiting for the download" over the player held at the downloaded edge. Doesn't block the controls.
+.pfDownloadWait {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 1000;
+    max-width: calc(100% - 2em);
+    padding: 1em 1.5em;
+    border-radius: 0.5em;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    text-align: center;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
+.pfDownloadWait-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4em;
+    font-size: 1.3em;
+    font-weight: 600;
+
+    .material-icons {
+        animation: spin-clockwise 4s linear infinite;
+    }
+}
+
+.pfDownloadWait-detail {
+    margin-top: 0.4em;
+    opacity: 0.8;
+}

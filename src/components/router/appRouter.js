@@ -11,6 +11,8 @@ import { ServerConnections } from 'lib/jellyfin-apiclient';
 import { toApi } from 'utils/jellyfin-apiclient/compat';
 import { queryClient } from 'utils/query/queryClient';
 import { history } from 'RootAppRouter';
+import { getActiveLibrary } from 'utils/piratefin';
+import { isYouTubeTabActive, YOUTUBE_SEARCH_EVENT } from 'utils/youtube';
 
 /** Pages of "no return" (when "Go back" should behave differently, probably quitting the application). */
 const START_PAGE_PATHS = ['/home', '/login', '/selectserver'];
@@ -493,7 +495,15 @@ class AppRouter {
     }
 
     showSearch() {
-        return this.show('search');
+        // On the YouTube tab, its own search box searches YouTube.
+        if (isYouTubeTabActive()) {
+            document.dispatchEvent(new CustomEvent(YOUTUBE_SEARCH_EVENT));
+            return Promise.resolve();
+        }
+
+        // On the Movies / Shows / Anime tabs, search only that library.
+        const library = getActiveLibrary();
+        return this.show(library ? `search?library=${library}` : 'search');
     }
 
     showLiveTV() {

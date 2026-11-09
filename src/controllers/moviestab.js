@@ -3,10 +3,11 @@ import loading from '../components/loading/loading';
 import focusManager from '../components/focusManager';
 import homeSections from '../components/homesections/homesections';
 import { ServerConnections } from 'lib/jellyfin-apiclient';
+import { setActiveLibrary } from 'utils/piratefin';
 
 import '../elements/emby-itemscontainer/emby-itemscontainer';
 
-class HomeTab {
+class MoviesTab {
     constructor(view, params) {
         this.view = view;
         this.params = params;
@@ -15,6 +16,7 @@ class HomeTab {
         view.querySelector('.sections').addEventListener('settingschange', onHomeScreenSettingsChanged.bind(this));
     }
     onResume(options) {
+        setActiveLibrary('Movies');
         if (this.sectionsRendered) {
             const sectionsContainer = this.sectionsContainer;
 
@@ -31,7 +33,7 @@ class HomeTab {
         this.destroyHomeSections();
         this.sectionsRendered = true;
         return apiClient.getCurrentUser()
-            .then(user => homeSections.loadSections(view.querySelector('.sections'), apiClient, user, userSettings))
+            .then(user => homeSections.loadSections(view.querySelector('.sections'), apiClient, user, userSettings, 'movies'))
             .then(() => {
                 if (options.autoFocus) {
                     focusManager.autoFocus(view);
@@ -43,6 +45,7 @@ class HomeTab {
             });
     }
     onPause() {
+        setActiveLibrary(null);
         const sectionsContainer = this.sectionsContainer;
 
         if (sectionsContainer) {
@@ -75,4 +78,4 @@ function onHomeScreenSettingsChanged() {
     }
 }
 
-export default HomeTab;
+export default MoviesTab;

@@ -31,6 +31,7 @@ import { LibraryTab } from 'types/libraryTab';
 import { ItemKind } from 'types/base/models/item-kind';
 import type { ItemDtoQueryResult } from 'types/base/models/item-dto-query-result';
 import type { ItemDto } from 'types/base/models/item-dto';
+import { getUtcOffsetMinutes } from 'utils/piratefin';
 
 const fetchGetItems = async (
     currentApi: JellyfinApiContext,
@@ -818,6 +819,22 @@ const fetchGetSectionItems = async (
                             signal: options?.signal
                         }
                     )
+                ).data;
+                break;
+            }
+            case SectionApiMethod.NewestMedia: {
+                // PirateFin: placeholders created from YTS / Trakt / AniList, newest first.
+                response = (
+                    await api.axiosInstance.get<ItemDto[]>(`${api.basePath}/PirateFin/Newest`, {
+                        params: {
+                            library: 'Movies',
+                            limit: 25,
+                            utcOffsetMinutes: getUtcOffsetMinutes(),
+                            fields: ItemFields.PrimaryImageAspectRatio
+                        },
+                        headers: { Authorization: api.authorizationHeader },
+                        signal: options?.signal
+                    })
                 ).data;
                 break;
             }

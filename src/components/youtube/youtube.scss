@@ -1,0 +1,782 @@
+// The YouTube tab, watch, channel and search pages: laid out like YouTube, coloured like PirateFin.
+
+$yt-red: #e50914;
+$yt-button: #1f1f1f;
+$yt-button-hover: #2a2a2a;
+$yt-radius: 0.75em;
+
+// YouTube pages have their own search bar.
+.ytHideHeaderSearch .headerSearchButton {
+    display: none !important;
+}
+
+.ytHome {
+    padding-bottom: 3em;
+}
+
+// Search bar: centred, with the tab's Unlink at the end of the same row.
+
+.ytTopBar {
+    display: grid;
+    grid-template-columns: 1fr minmax(0, 40em) 1fr;
+    gap: 1em;
+    align-items: center;
+    margin: 0.5em 0 1.5em;
+}
+
+.ytSearch {
+    display: flex;
+    grid-column: 2;
+}
+
+.ytTopBarEnd {
+    display: flex;
+    grid-column: 3;
+    justify-content: flex-end;
+}
+
+@media (max-width: 50em) {
+    .ytTopBar {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .ytSearch {
+        grid-column: 1;
+    }
+
+    .ytTopBarEnd {
+        grid-column: 2;
+    }
+}
+
+.ytSearchInput {
+    flex: 1;
+    min-width: 0;
+    padding: 0.6em 1em;
+    border: 1px solid #333;
+    border-right: 0;
+    border-radius: 2em 0 0 2em;
+    background: #121212;
+    color: inherit;
+    font: inherit;
+
+    &:focus {
+        border-color: $yt-red;
+        outline: none;
+    }
+}
+
+.ytSearchButton {
+    padding: 0 1.2em;
+    border: 1px solid #333;
+    border-radius: 0 2em 2em 0;
+    background: $yt-button;
+    color: inherit;
+    cursor: pointer;
+
+    &:hover,
+    &:focus {
+        background: $yt-button-hover;
+    }
+
+    &:focus {
+        border-color: $yt-red;
+        outline: none;
+    }
+}
+
+// Buttons (Unlink, Refresh, Download, ...): dark, rounded; red when focused on TVs.
+
+.emby-button.ytButton {
+    margin: 0;
+    padding: 0.5em 1.1em;
+    border-radius: 2em;
+    background: $yt-button;
+    color: #fff;
+
+    &:hover {
+        background: $yt-button-hover;
+    }
+
+    &.show-focus:focus {
+        background: $yt-red;
+    }
+}
+
+// The grid and its tiles.
+
+.ytGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18em, 1fr));
+    gap: 2.5em 1em;
+}
+
+.ytTile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75em;
+    min-width: 0;
+}
+
+.ytThumbButton {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: $yt-radius;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+
+    // The focus ring follows the rounded corners.
+    &:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px #fff;
+    }
+}
+
+.ytThumb {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: $yt-radius;
+    background: #222;
+
+    img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+}
+
+.ytDuration {
+    position: absolute;
+    right: 0.4em;
+    bottom: 0.4em;
+    padding: 0.1em 0.35em;
+    border-radius: 0.3em;
+    background: rgba(0, 0, 0, 0.8);
+    font-size: 0.8em;
+    font-weight: 500;
+}
+
+.ytBadge {
+    position: absolute;
+    top: 0.4em;
+    right: 0.4em;
+    padding: 0.15em;
+    border-radius: 0.3em;
+    background: rgba(0, 0, 0, 0.8);
+    font-size: 1.1em;
+}
+
+.ytProgress {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.35);
+
+    div {
+        height: 100%;
+        background: $yt-red;
+    }
+}
+
+.ytMeta {
+    display: flex;
+    gap: 0.75em;
+    min-width: 0;
+}
+
+.ytAvatarButton {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.ytAvatar {
+    display: flex;
+    flex: 0 0 2.25em;
+    width: 2.25em;
+    height: 2.25em;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.ytAvatar-empty {
+    align-items: center;
+    justify-content: center;
+    background: #555;
+    font-weight: 500;
+}
+
+.ytText {
+    min-width: 0;
+}
+
+.ytTitle {
+    display: -webkit-box;
+    overflow: hidden;
+    margin-bottom: 0.3em;
+    font-weight: 500;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.ytTitleButton,
+.ytChannelLink {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+
+.ytTitleButton {
+    font-weight: 500;
+}
+
+.ytSub {
+    overflow: hidden;
+    font-size: 0.875em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    opacity: 0.7;
+}
+
+// The channel name in browsers: bold and underlined under the mouse.
+.ytChannelLink {
+    display: block;
+    max-width: 100%;
+
+    &:hover,
+    &:focus-visible {
+        font-weight: 700;
+        text-decoration: underline;
+        opacity: 1;
+    }
+}
+
+.ytTile-compact {
+    flex-direction: row;
+
+    .ytThumbButton {
+        flex: 0 0 10.5em;
+        width: 10.5em;
+    }
+
+    .ytTitle,
+    .ytTitleButton {
+        font-size: 0.9em;
+    }
+}
+
+.ytLoading,
+.ytEmpty,
+.ytSearchesLeft {
+    margin: 2em 0;
+    text-align: center;
+    opacity: 0.7;
+}
+
+.ytSentinel {
+    height: 1px;
+}
+
+.ytRefresh {
+    display: flex;
+    justify-content: center;
+    margin: 2em 0;
+}
+
+.ytNotice {
+    color: #fbc02d;
+}
+
+.ytError {
+    color: #ff6b6b;
+}
+
+// Linking
+
+.ytLink {
+    max-width: 60em;
+    margin: 1em auto 3em;
+}
+
+.ytLinkOptions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(20em, 1fr));
+    gap: 1.5em;
+    margin-top: 1.5em;
+}
+
+.ytLinkOption {
+    padding: 1.5em;
+    border-radius: $yt-radius;
+    background: rgba(255, 255, 255, 0.06);
+
+    h2 {
+        margin-top: 0;
+    }
+}
+
+.ytDeviceCode {
+    text-align: center;
+
+    p {
+        margin: 0.5em 0;
+    }
+}
+
+.ytDeviceUrl {
+    font-size: 1.4em;
+    font-weight: 500;
+}
+
+.ytUserCode {
+    margin: 0.3em 0;
+    font-family: monospace;
+    font-size: 2.4em;
+    font-weight: bold;
+    letter-spacing: 0.15em;
+}
+
+// Channel page and the account in search results
+
+.ytChannelHeader {
+    margin-bottom: 2em;
+}
+
+.ytBanner {
+    display: block;
+    width: 100%;
+    aspect-ratio: 6 / 1;
+    margin-bottom: 1.5em;
+    border-radius: $yt-radius;
+    object-fit: cover;
+}
+
+.ytChannelInfo {
+    display: flex;
+    gap: 1.5em;
+    align-items: flex-start;
+
+    h1 {
+        margin: 0 0 0.3em;
+    }
+}
+
+.ytChannelAvatar {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 8em;
+    height: 8em;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.ytChannelText {
+    min-width: 0;
+}
+
+.ytSubscribed {
+    display: inline-flex;
+    gap: 0.3em;
+    align-items: center;
+    margin-top: 0.75em;
+    padding: 0.35em 0.9em;
+    border-radius: 2em;
+    background: $yt-button;
+    font-size: 0.9em;
+
+    .material-icons {
+        font-size: 1.1em;
+    }
+}
+
+.ytAbout {
+    display: block;
+    width: 100%;
+    max-width: 50em;
+    margin-top: 0.75em;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    opacity: 0.85;
+
+    &:focus {
+        outline: 2px solid #fff;
+        outline-offset: 4px;
+    }
+}
+
+.ytChannelResult {
+    display: flex;
+    gap: 1.5em;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 2em;
+    padding: 1em;
+    border: 0;
+    border-radius: $yt-radius;
+    background: rgba(255, 255, 255, 0.04);
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+
+    .ytChannelAvatar {
+        width: 6em;
+        height: 6em;
+    }
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    &:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px #fff;
+    }
+}
+
+.ytChannelResultName {
+    font-size: 1.3em;
+    font-weight: 600;
+}
+
+// Watch page
+
+.ytWatch {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 25em;
+    gap: 1.5em;
+    max-width: 110em;
+    margin: 0 auto;
+    padding-bottom: 3em;
+}
+
+@media (max-width: 62em) {
+    .ytWatch {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.ytWatchTitle {
+    margin: 0.6em 0;
+    font-size: 1.4em;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.ytChannelRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ytChannel {
+    display: flex;
+    gap: 0.75em;
+    align-items: center;
+
+    .ytAvatar {
+        flex-basis: 2.75em;
+        width: 2.75em;
+        height: 2.75em;
+    }
+}
+
+.ytChannelButton {
+    padding: 0.3em 1em 0.3em 0.3em;
+    border: 0;
+    border-radius: 2em;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+
+    &:focus {
+        outline: none;
+        background: $yt-red;
+    }
+}
+
+.ytChannelName {
+    font-weight: 600;
+}
+
+.ytActions {
+    display: flex;
+    gap: 0.5em;
+}
+
+.ytDescription {
+    width: 100%;
+    margin-top: 1em;
+    padding: 0.75em 1em;
+    border: 0;
+    border-radius: $yt-radius;
+    background: $yt-button;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+
+    &:focus {
+        outline: 2px solid #fff;
+    }
+}
+
+.ytDescriptionText {
+    margin-top: 0.5em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.ytDescription-collapsed .ytDescriptionText {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.ytUpNext {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75em;
+
+    h2 {
+        margin: 0 0 0.25em;
+        font-size: 1.1em;
+    }
+}
+
+// Player, in PirateFin's player look
+
+.ytPlayer {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: $yt-radius;
+    background: #000;
+
+    video {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    // Only the controls show focus, never the whole player.
+    &:focus {
+        outline: none;
+    }
+}
+
+.ytPlayer-fullscreen {
+    border-radius: 0;
+    aspect-ratio: auto;
+}
+
+.ytPlayerOverlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+    align-items: center;
+    justify-content: center;
+    padding: 1em;
+    background: rgba(0, 0, 0, 0.6);
+    text-align: center;
+}
+
+.ytSpinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3.5em;
+    height: 3.5em;
+    margin: -1.75em 0 0 -1.75em;
+    border: 0.3em solid rgba(255, 255, 255, 0.25);
+    border-top-color: $yt-red;
+    border-radius: 50%;
+    animation: yt-spin 0.9s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes yt-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ytControls {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    padding: 2.5em 0.75em 0.4em;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0));
+    transition: opacity 0.3s;
+}
+
+.ytPlayer-idle {
+    cursor: none;
+
+    .ytControls {
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+.ytSeekTrack {
+    position: relative;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.25);
+    transition: height 0.1s;
+}
+
+.ytSeekBuffered,
+.ytSeekPlayed {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    border-radius: 2px;
+}
+
+.ytSeekBuffered {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.ytSeekPlayed {
+    background: $yt-red;
+}
+
+.ytSeekKnob {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border-radius: 50%;
+    background: $yt-red;
+    transform: scale(0);
+    transition: transform 0.1s;
+}
+
+.ytSeek {
+    padding: 0.6em 0;
+    cursor: pointer;
+    touch-action: none;
+
+    &:hover .ytSeekKnob,
+    &:focus .ytSeekKnob {
+        transform: scale(1);
+    }
+
+    &:focus {
+        outline: none;
+    }
+
+    &:focus .ytSeekTrack {
+        height: 6px;
+    }
+}
+
+.ytControlRow {
+    display: flex;
+    gap: 0.25em;
+    align-items: center;
+}
+
+.ytControl {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6em;
+    height: 2.6em;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: #fff;
+    cursor: pointer;
+
+    .material-icons {
+        font-size: 1.8em;
+    }
+
+    &:hover {
+        color: $yt-red;
+        background: rgba(229, 9, 20, 0.2);
+    }
+
+    &:focus {
+        outline: none;
+        color: #fff;
+        background: $yt-red;
+    }
+}
+
+.ytVolume {
+    width: 6em;
+    accent-color: $yt-red;
+}
+
+.ytTime {
+    margin-left: 0.5em;
+    font-size: 0.9em;
+    font-variant-numeric: tabular-nums;
+}
+
+.ytControlSpacer {
+    flex: 1;
+}
+
+// TVs: one column; the player takes the full width (up to the screen's height) and Up next is a list below the
+// description.
+.ytWatch-tv {
+    grid-template-columns: minmax(0, 1fr);
+
+    .ytPlayer {
+        // The header, the search bar and the whole player fit on the screen with the page at the top.
+        max-height: calc(100vh - 13em);
+    }
+
+    .ytUpNext {
+        max-width: 60em;
+        margin-top: 1em;
+    }
+
+    .ytTile-compact .ytThumbButton {
+        flex-basis: 16em;
+        width: 16em;
+    }
+}

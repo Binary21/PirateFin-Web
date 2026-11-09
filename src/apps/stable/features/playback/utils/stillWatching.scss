@@ -1,0 +1,32 @@
+// "Are you still watching?" over the paused player.
+.pfStillWatching {
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.75);
+}
+
+.pfStillWatching-panel {
+    max-width: 32em;
+    padding: 2em;
+    text-align: center;
+}
+
+.pfStillWatching-title {
+    margin: 0 0 1.2em;
+    color: #fff;
+    font-size: 1.8em;
+    font-weight: 600;
+}
+
+.pfStillWatching-buttons {
+    display: flex;
+    justify-content: center;
+
+    > .pfButton + .pfButton {
+        margin-left: 1em;
+    }
+}

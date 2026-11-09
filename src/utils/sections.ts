@@ -51,6 +51,20 @@ export const getSuggestionSections = (): Section[] => {
             }
         },
         {
+            name: 'HeaderNewestMovies',
+            apiMethod: SectionApiMethod.NewestMedia,
+            itemTypes: 'Movie',
+            type: SectionType.NewestMovies,
+            parametersOptions: {
+                includeItemTypes: [BaseItemKind.Movie]
+            },
+            cardOptions: {
+                overlayPlayButton: true,
+                shape: CardShape.PortraitOverflow,
+                showYear: true
+            }
+        },
+        {
             name: 'HeaderContinueWatching',
             apiMethod: SectionApiMethod.ResumeItems,
             itemTypes: 'Episode',

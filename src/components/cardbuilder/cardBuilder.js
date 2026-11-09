@@ -280,7 +280,13 @@ export function getCardImageUrl(item, apiClient, options, shape) {
     let itemId = null;
 
     /* eslint-disable sonarjs/no-duplicated-branches */
-    if (options.preferThumb && item.ImageTags?.Thumb) {
+    if (options.preferSeriesPoster && item.Type === 'Episode' && item.SeriesPrimaryImageTag && item.SeriesId) {
+        // PirateFin rows show episodes with their series' poster.
+        imgType = 'Primary';
+        imgTag = item.SeriesPrimaryImageTag;
+        itemId = item.SeriesId;
+        coverImage = true;
+    } else if (options.preferThumb && item.ImageTags?.Thumb) {
         imgType = 'Thumb';
         imgTag = item.ImageTags.Thumb;
     } else if ((options.preferBanner || shape === 'banner') && item.ImageTags?.Banner) {
@@ -394,6 +400,12 @@ export function getCardImageUrl(item, apiClient, options, shape) {
             quality: 96,
             tag: imgTag
         });
+    }
+
+    // PirateFin placeholders show the Trakt / AniList poster until Jellyfin has fetched artwork.
+    if (!imgUrl && item.BackupImageUrl) {
+        imgUrl = item.BackupImageUrl;
+        coverImage = true;
     }
 
     const blurHashes = options.imageBlurhashes || item.ImageBlurHashes || {};

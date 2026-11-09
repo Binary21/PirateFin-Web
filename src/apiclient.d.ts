@@ -142,6 +142,7 @@ declare module 'jellyfin-apiclient' {
         getItem(userId: string, itemId: string): Promise<BaseItemDto>;
         getJSON(url: string, includeAuthorization?: boolean): Promise<any>;
         getLatestItems(options?: any): Promise<BaseItemDto[]>;
+        getNewestItems(options?: any): Promise<BaseItemDto[]>;
         getLiveStreamMediaInfo(liveStreamId: string): Promise<any>;
         getLiveTvChannel(id: string, userId?: string): Promise<BaseItemDto>;
         getLiveTvChannels(options?: any): Promise<BaseItemDtoQueryResult>;

@@ -1,8 +1,6 @@
 import escapeHtml from 'escape-html';
 import Headroom from 'headroom.js';
 // NOTE: Used for jsdoc
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { ApiClient } from 'jellyfin-apiclient';
 
 import { AppFeature } from 'constants/appFeature';
 import { getUserViewsQuery } from 'hooks/useUserViews';
@@ -28,7 +26,21 @@ import Dashboard, { pageClassOn } from '../utils/dashboard';
 import { PluginType } from '../types/plugin.ts';
 import Events from '../utils/events.ts';
 import { getParameterByName } from '../utils/url.ts';
-import datetime from '../scripts/datetime';
+import { getPirateFinLogoSvg } from '../components/piratefinLogo';
+import { getProfiles } from '../utils/profiles';
+import { askToLeaveKidsProfile } from '../components/kidsLock/kidsLock';
+import {
+    applyKidsProfile,
+    cancelRequest,
+    clearInbox,
+    deleteNotification,
+    getInbox,
+    getLastHomeTab,
+    getMyRequests,
+    getProfileSettings,
+    markInboxSeen,
+    REQUESTS_CHANGED_EVENT
+} from '../utils/piratefin';
 
 import '../elements/emby-button/paper-icon-button-light';
 
@@ -40,22 +52,27 @@ function renderHeader() {
     let html = '';
     html += '<div class="flex align-items-center flex-grow headerTop">';
     html += '<div class="headerLeft">';
+    html += '<button is="paper-icon-button-light" class="headerButton headerButtonLeft headerUserButton hide"><span class="material-icons person" aria-hidden="true"></span></button>';
+    // PirateFin: the user's notifications and open download requests; the dot shows until they open it.
+    html += '<button type="button" is="paper-icon-button-light" class="headerButton headerButtonLeft headerRequestsButton hide" title="Notifications"><span class="material-icons notifications" aria-hidden="true"></span><span class="headerRequestsDot hide"></span></button>';
     html += '<button type="button" is="paper-icon-button-light" class="headerButton headerButtonLeft headerBackButton hide"><span class="material-icons ' + (browser.safari ? 'chevron_left' : 'arrow_back') + '" aria-hidden="true"></span></button>';
     html += '<button type="button" is="paper-icon-button-light" class="headerButton headerHomeButton hide barsMenuButton headerButtonLeft"><span class="material-icons home" aria-hidden="true"></span></button>';
     html += '<button type="button" is="paper-icon-button-light" class="headerButton mainDrawerButton barsMenuButton headerButtonLeft hide"><span class="material-icons menu" aria-hidden="true"></span></button>';
     html += '<h3 class="pageTitle" aria-hidden="true"></h3>';
     html += '</div>';
+    // Search and the Movies / Shows / Anime tabs sit centered in the bar.
+    html += '<div class="pfHeaderCenter">';
+    html += '<button type="button" is="paper-icon-button-light" class="headerButton headerSearchButton hide"><span class="material-icons search" aria-hidden="true"></span></button>';
+    html += '<div class="headerTabs sectionTabs hide">';
+    html += '</div>';
+    html += '</div>';
     html += '<div class="headerRight">';
-    html += '<button is="paper-icon-button-light" class="headerSyncButton syncButton headerButton headerButtonRight hide"><span class="material-icons groups" aria-hidden="true"></span></button>';
     html += '<span class="headerSelectedPlayer"></span>';
     html += '<button is="paper-icon-button-light" class="headerAudioPlayerButton audioPlayerButton headerButton headerButtonRight hide"><span class="material-icons music_note" aria-hidden="true"></span></button>';
     html += '<button is="paper-icon-button-light" class="headerCastButton castButton headerButton headerButtonRight hide"><span class="material-icons cast" aria-hidden="true"></span></button>';
-    html += '<button type="button" is="paper-icon-button-light" class="headerButton headerButtonRight headerSearchButton hide"><span class="material-icons search" aria-hidden="true"></span></button>';
-    html += '<button is="paper-icon-button-light" class="headerButton headerButtonRight headerUserButton hide"><span class="material-icons person" aria-hidden="true"></span></button>';
-    html += '<div class="currentTimeText hide"></div>';
+    // Decoration only, so it never takes focus. TV and phones show just the "P".
+    html += `<div class="pfHeaderLogo" aria-hidden="true">${getPirateFinLogoSvg(!layoutManager.mobile && !layoutManager.tv)}</div>`;
     html += '</div>';
-    html += '</div>';
-    html += '<div class="headerTabs sectionTabs hide">';
     html += '</div>';
 
     skinHeader.classList.add('skinHeader-withBackground');
@@ -68,17 +85,15 @@ function renderHeader() {
     headerHomeButton = skinHeader.querySelector('.headerHomeButton');
     mainDrawerButton = skinHeader.querySelector('.mainDrawerButton');
     headerUserButton = skinHeader.querySelector('.headerUserButton');
+    headerRequestsButton = skinHeader.querySelector('.headerRequestsButton');
     headerCastButton = skinHeader.querySelector('.headerCastButton');
     headerAudioPlayerButton = skinHeader.querySelector('.headerAudioPlayerButton');
     headerSearchButton = skinHeader.querySelector('.headerSearchButton');
-    headerSyncButton = skinHeader.querySelector('.headerSyncButton');
-    currentTimeText = skinHeader.querySelector('.currentTimeText');
 
     retranslateUi();
     lazyLoadViewMenuBarImages();
     bindMenuEvents();
     updateCastIcon();
-    updateClock();
 }
 
 function getCurrentApiClient() {
@@ -96,6 +111,12 @@ function lazyLoadViewMenuBarImages() {
 }
 
 function onBackClick() {
+    // Signing in to add a profile: Back returns to "Who's watching?".
+    if (skinHeader.classList.contains('pfHeader-backHome')) {
+        appRouter.show('/profiles');
+        return;
+    }
+
     appRouter.back();
 }
 
@@ -182,7 +203,7 @@ function updateUserInHeader(user) {
     } else {
         headerHomeButton.classList.add('hide');
         headerCastButton.classList.add('hide');
-        headerSyncButton.classList.add('hide');
+        headerSyncButton?.classList.add('hide');
 
         if (headerSearchButton) {
             headerSearchButton.classList.add('hide');
@@ -190,6 +211,7 @@ function updateUserInHeader(user) {
     }
 
     requiresUserRefresh = false;
+    refreshRequestsBell();
 }
 
 function updateHeaderUserButton(src) {
@@ -202,27 +224,181 @@ function updateHeaderUserButton(src) {
     }
 }
 
-function updateClock() {
-    if (layoutManager.tv) {
-        currentTimeText.classList.remove('hide');
-        setInterval(function() {
-            currentTimeText.innerText = datetime.getDisplayTime(new Date());
-        }, 1000);
-    } else {
-        currentTimeText.classList.add('hide');
-    }
-}
-
 function showSearch() {
     inputManager.handleCommand('search');
 }
 
-function onHeaderUserButtonClick() {
-    Dashboard.navigate('mypreferencesmenu');
+function onHeaderUserButtonClick(e) {
+    showProfileMenu(e.currentTarget);
+}
+
+const NOTIFICATION_ICONS = {
+    EpisodeReady: 'live_tv',
+    RequestClosed: 'support_agent',
+    DownloadReady: 'download_done'
+};
+
+/** Shows the bell while signed in, with the dot while any notification hasn't been seen. */
+function refreshRequestsBell() {
+    const apiClient = getCurrentApiClient();
+    if (!headerRequestsButton || !apiClient?.getCurrentUserId()) {
+        headerRequestsButton?.classList.add('hide');
+        return;
+    }
+
+    getInbox(apiClient).then(inbox => {
+        headerRequestsButton.classList.remove('hide');
+        headerRequestsButton.querySelector('.headerRequestsDot').classList.toggle('hide', inbox.Unseen === 0);
+        headerRequestsButton.title = inbox.Unseen ? `Notifications (${inbox.Unseen} new)` : 'Notifications';
+    }).catch(err => {
+        console.error('[PirateFin] could not load the notifications', err);
+    });
+}
+
+/**
+ * The bell's dropdown: the user's open requests (select to cancel), then their notifications (select to delete).
+ * Opening it marks the notifications seen, which clears the dot.
+ */
+function onHeaderRequestsButtonClick(e) {
+    showNotificationsMenu(e.currentTarget);
+}
+
+function showNotificationsMenu(button) {
+    const apiClient = getCurrentApiClient();
+    Promise.all([ getMyRequests(apiClient), getInbox(apiClient) ]).then(([ mine, inbox ]) => {
+        if (inbox.Unseen) {
+            headerRequestsButton.querySelector('.headerRequestsDot').classList.add('hide');
+            headerRequestsButton.title = 'Notifications';
+            markInboxSeen(apiClient).catch(err => console.error('[PirateFin] could not mark the notifications seen', err));
+        }
+
+        const items = mine.Requests.filter(request => request.Status === 'Open').map(request => ({
+            id: `request:${request.Id}`,
+            name: `${request.SeriesName} ${request.Title}`,
+            secondaryText: 'Waiting for an admin. Select to cancel.',
+            icon: 'hourglass_empty'
+        }));
+        if (items.length && inbox.Notifications.length) {
+            items.push({ divider: true });
+        }
+
+        for (const notification of inbox.Notifications) {
+            items.push({
+                id: `notification:${notification.Id}`,
+                name: notification.Title,
+                secondaryText: [ notification.Text, 'Select to delete.' ].filter(Boolean).join(' '),
+                icon: NOTIFICATION_ICONS[notification.Kind]
+            });
+        }
+
+        if (inbox.Notifications.length > 1) {
+            items.push({ id: 'clear', name: 'Delete all notifications', icon: 'delete_sweep' });
+        }
+
+        if (!items.length) {
+            items.push({ id: 'none', name: 'Nothing new', secondaryText: 'Replies to your requests and new episodes of seasons you follow show up here.' });
+        }
+
+        return import('../components/actionSheet/actionSheet').then(({ default: actionSheet }) => actionSheet.show({
+            title: 'Notifications',
+            items,
+            positionTo: button,
+            positionY: 'below',
+            dialogClass: 'pfDropdownMenu',
+            inline: true
+        }));
+    }).then(id => {
+        if (id === 'clear') {
+            return clearInbox(apiClient);
+        }
+
+        if (id?.startsWith('notification:')) {
+            // Reopened so several can be deleted in a row.
+            return deleteNotification(apiClient, id.slice('notification:'.length)).then(() => showNotificationsMenu(button));
+        }
+
+        if (!id?.startsWith('request:')) {
+            return;
+        }
+
+        return import('../components/confirm/confirm').then(({ default: confirm }) => confirm({
+            title: 'Cancel request',
+            text: 'Cancel this request? It frees one of your requests.',
+            confirmText: 'Cancel request',
+            cancelText: 'Keep it',
+            primary: 'delete'
+        })).then(() => cancelRequest(apiClient, id.slice('request:'.length)), () => {
+            // Kept.
+        });
+    }).catch(err => {
+        // The sheet rejects when closed without a choice.
+        if (err) {
+            console.error('[PirateFin] notifications menu failed', err);
+        }
+    });
+}
+
+/** The profile button's menu: switch profile, settings and (in apps that can close themselves) exit. */
+function showProfileMenu(button) {
+    const items = [
+        { id: 'switchprofile', name: 'Switch Profile', icon: 'switch_account' },
+        { id: 'settings', name: globalize.translate('Settings'), icon: 'settings' }
+    ];
+
+    // A browser tab can't close itself, so Exit is only offered by TV / native apps.
+    if (appHost.supports(AppFeature.ExitMenu)) {
+        items.push({ id: 'exit', name: 'Exit PirateFin', icon: 'exit_to_app' });
+    }
+
+    import('../components/actionSheet/actionSheet').then(({ default: actionSheet }) => actionSheet.show({
+        items,
+        positionTo: button,
+        positionY: 'below',
+        dialogClass: 'pfDropdownMenu',
+        inline: true
+    })).then(async id => {
+        // Leaving a kids profile needs its PIN.
+        if (!id || !await askToLeaveKidsProfile()) {
+            return;
+        }
+
+        switch (id) {
+            case 'switchprofile':
+                Dashboard.navigate('profiles');
+                break;
+            case 'settings':
+                Dashboard.navigate('mypreferencesmenu');
+                break;
+            case 'exit':
+                confirmExit();
+                break;
+        }
+    }).catch(() => {
+        // Menu closed.
+    });
+}
+
+function confirmExit() {
+    import('../components/actionSheet/actionSheet').then(({ default: actionSheet }) => actionSheet.show({
+        title: 'Exit PirateFin?',
+        inline: true,
+        items: [
+            { id: 'yes', name: globalize.translate('Yes') },
+            { id: 'no', name: globalize.translate('No') }
+        ]
+    })).then(id => {
+        if (id === 'yes') {
+            appHost.exit();
+        }
+    }).catch(() => {
+        // Dialog closed.
+    });
 }
 
 function onHeaderHomeButtonClick() {
-    Dashboard.navigate('home');
+    // Back to the library tab (Movies / Shows / Anime) last shown, not always the first one.
+    const tab = getLastHomeTab();
+    Dashboard.navigate(tab == null ? 'home' : `home?tab=${tab}`);
 }
 
 function showAudioPlayer() {
@@ -243,6 +419,7 @@ function bindMenuEvents() {
     }
 
     headerUserButton.addEventListener('click', onHeaderUserButtonClick);
+    headerRequestsButton.addEventListener('click', onHeaderRequestsButtonClick);
     headerHomeButton.addEventListener('click', onHeaderHomeButtonClick);
 
     if (!layoutManager.tv) {
@@ -250,7 +427,7 @@ function bindMenuEvents() {
     }
 
     headerAudioPlayerButton.addEventListener('click', showAudioPlayer);
-    headerSyncButton.addEventListener('click', onSyncButtonClicked);
+    headerSyncButton?.addEventListener('click', onSyncButtonClicked);
 
     if (layoutManager.mobile) {
         initHeadRoom(skinHeader);
@@ -691,16 +868,16 @@ let navDrawerInstance;
 let mainDrawerButton;
 let headerHomeButton;
 let currentDrawerType;
-let documentTitle = 'Jellyfin';
+const documentTitle = 'PirateFin';
 let pageTitleElement;
 let headerBackButton;
 let headerUserButton;
+let headerRequestsButton;
 let currentUser;
 let headerCastButton;
 let headerSearchButton;
 let headerAudioPlayerButton;
 let headerSyncButton;
-let currentTimeText;
 const enableLibraryNavDrawer = layoutManager.desktop;
 const enableLibraryNavDrawerHome = !layoutManager.tv;
 const skinHeader = document.querySelector('.skinHeader');
@@ -721,19 +898,10 @@ function setTabs (type, selectedIndex, builder) {
 }
 
 /**
- * Fetch the server name and update the document title.
- * @param {ApiClient} [_apiClient] The current api client.
+ * Resets the document title; PirateFin always shows its own name rather than the server's.
  */
-const fetchServerName = (_apiClient) => {
-    _apiClient
-        ?.getPublicSystemInfo()
-        .then(({ ServerName }) => {
-            documentTitle = ServerName || documentTitle;
-            document.title = documentTitle;
-        })
-        .catch(err => {
-            console.error('[LibraryMenu] failed to fetch system info', err);
-        });
+const fetchServerName = () => {
+    document.title = documentTitle;
 };
 
 function setDefaultTitle () {
@@ -822,10 +990,36 @@ pageClassOn('pageshow', 'page', function (e) {
     updateTitle(page);
     updateBackButton(page);
     updateLibraryNavLinks(page);
+    updatePirateFinHeader(page, isHomePage);
 });
 
-Events.on(ServerConnections, 'apiclientcreated', (e, newApiClient) => {
-    fetchServerName(newApiClient);
+// Search sits centered with the tabs on the home page, and next to Home everywhere else.
+// The profile picker shows nothing but Home; signing in to add a profile shows Back (to the picker) and Home.
+function updatePirateFinHeader(page, isHomePage) {
+    skinHeader.classList.toggle('pfHeader-homeOnly', page.id === 'pirateFinProfilesPage');
+
+    const addingProfile = page.id === 'loginPage' && getProfiles().length > 0;
+    skinHeader.classList.toggle('pfHeader-backHome', addingProfile);
+    if (addingProfile && headerBackButton) {
+        headerBackButton.classList.remove('hide');
+    }
+
+    if (!headerSearchButton) {
+        return;
+    }
+
+    if (isHomePage) {
+        const center = skinHeader.querySelector('.pfHeaderCenter');
+        if (center && headerSearchButton.parentNode !== center) {
+            center.insertBefore(headerSearchButton, center.firstChild);
+        }
+    } else if (headerHomeButton && headerSearchButton.previousElementSibling !== headerHomeButton) {
+        headerHomeButton.after(headerSearchButton);
+    }
+}
+
+Events.on(ServerConnections, 'apiclientcreated', () => {
+    fetchServerName();
 });
 
 Events.on(ServerConnections, 'localusersignedin', function (e, user) {
@@ -842,23 +1036,46 @@ Events.on(ServerConnections, 'localusersignedin', function (e, user) {
         currentUser = userResult;
         updateUserInHeader(userResult);
     });
+
+    // A kids profile gets the kids look and no requests / adding titles.
+    getProfileSettings(currentApiClient, user.Id)
+        .then(profile => applyKidsProfile(profile.IsKids))
+        .catch(() => applyKidsProfile(false));
 });
+
+// The bell follows the user's requests: changed here, or answered by an admin meanwhile.
+document.addEventListener(REQUESTS_CHANGED_EVENT, refreshRequestsBell);
+setInterval(refreshRequestsBell, 2 * 60 * 1000);
 
 Events.on(ServerConnections, 'localusersignedout', function () {
     currentUser = {};
     updateUserInHeader();
+    applyKidsProfile(false);
 });
 
 Events.on(playbackManager, 'playerchange', updateCastIcon);
 
-fetchServerName(getCurrentApiClient());
+fetchServerName();
 loadNavDrawer();
+
+/** Fetches the signed in user again and updates the header, e.g. after their profile icon changed. */
+function refreshUser() {
+    const apiClient = getCurrentApiClient();
+    // getCurrentUser always returns the cached user; the api client clears it the same way on a UserUpdated message.
+    apiClient._currentUser = null;
+    return ServerConnections.user(apiClient)
+        .then(user => {
+            currentUser = user;
+            updateUserInHeader(user);
+        });
+}
 
 const LibraryMenu = {
     getTopParentId,
     onHardwareMenuButtonClick: function () {
         toggleMainDrawer();
     },
+    refreshUser,
     setTabs,
     setDefaultTitle,
     setTitle,

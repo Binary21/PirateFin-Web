@@ -114,7 +114,11 @@ function authenticateQuickConnect(apiClient, targetUrl) {
 
 function onLoginSuccessful(id, accessToken, apiClient, url) {
     Dashboard.onServerChanged(id, accessToken, apiClient);
-    Dashboard.navigate(url || 'home');
+
+    // PirateFin: after signing in with an emailed temporary password, choose a new one first.
+    apiClient.getJSON(apiClient.getUrl('PirateFin/Users/Me/PasswordChangeRequired'))
+        .catch(() => false)
+        .then(required => Dashboard.navigate(required === true ? 'changepassword' : (url || 'home')));
 }
 
 function showManualForm(context, showCancel, focusPassword) {

@@ -14,6 +14,7 @@ import recordingHelper from './recordingcreator/recordinghelper';
 import toast from './toast/toast';
 import * as userSettings from '../scripts/settings/userSettings';
 import { toApi } from 'utils/jellyfin-apiclient/compat';
+import { showSourcePicker, toggleSubscription } from 'utils/piratefin';
 
 function playAllFromHere(card, serverId, queue) {
     const parent = card.parentNode;
@@ -156,6 +157,8 @@ function showContextMenu(card, options = {}) {
             ]) => {
                 return itemContextMenu.show({
                     item,
+                    // PirateFin: cards in Continue Watching / Next Up can be removed from them.
+                    removeFromContinueWatching: !!card.closest('[data-pf-continue]'),
                     play: true,
                     queue: true,
                     playAllFromHere: item.Type === 'Season' || !item.IsFolder,
@@ -310,6 +313,10 @@ function executeAction(card, target, action) {
         getItem(target).then(playTrailer);
     } else if (action === 'addtoplaylist') {
         getItem(target).then(addToPlaylist);
+    } else if (action === 'subscribetoseason') {
+        getItem(target).then(targetItem => toggleSeasonSubscription(targetItem, card));
+    } else if (action === 'choosesource') {
+        getItem(target).then(targetItem => chooseSource(targetItem, card));
     } else if (action === 'custom') {
         const customAction = target.getAttribute('data-customaction');
 
@@ -334,6 +341,32 @@ function addToPlaylist(item) {
         });
     }).catch(err => {
         console.error('[addToPlaylist] failed to load playlist editor', err);
+    });
+}
+
+function toggleSeasonSubscription(item, card) {
+    const apiClient = ServerConnections.getApiClient(item.ServerId);
+
+    toggleSubscription(apiClient, item, card).then(changed => {
+        if (!changed) {
+            return;
+        }
+        toast(changed === 'subscribed' ? 'Subscribed: new episodes download automatically' : 'Unsubscribed');
+        notifyRefreshNeeded(card);
+    }).catch(err => {
+        console.error('[PirateFin] failed to change subscription', err);
+    });
+}
+
+function chooseSource(item, card) {
+    const apiClient = ServerConnections.getApiClient(item.ServerId);
+
+    showSourcePicker(apiClient, item, card).then(chosen => {
+        if (chosen) {
+            notifyRefreshNeeded(card);
+        }
+    }).catch(err => {
+        console.error('[PirateFin] failed to choose a source', err);
     });
 }
 

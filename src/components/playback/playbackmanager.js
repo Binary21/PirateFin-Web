@@ -30,6 +30,7 @@ import { AppFeature } from 'constants/appFeature';
 import { ServerConnections } from 'lib/jellyfin-apiclient';
 import { MediaError } from 'types/mediaError';
 import { getMediaError } from 'utils/mediaError';
+import { isNotReadyToPlay } from 'utils/piratefin';
 import { toApi } from 'utils/jellyfin-apiclient/compat';
 import { bindSkipSegment } from './skipsegment.ts';
 
@@ -1663,6 +1664,18 @@ export class PlaybackManager {
 
             const ticks = getCurrentTicks(player) + offsetTicks;
             return this.seek(ticks, player);
+        };
+
+        /**
+         * PirateFin: reloads the stream at the current position, dropping whatever the player and the server's
+         * transcode read ahead. Used after waiting at the edge of a download: what was read past it was empty.
+         * @param {Object} [player] The player.
+         */
+        self.restartStream = function (player) {
+            player = player || self._currentPlayer;
+            if (player && enableLocalPlaylistManagement(player)) {
+                changeStream(player, getCurrentTicks(player), {});
+            }
         };
 
         // Returns true if the player can seek using native client-side seeking functions
@@ -3457,7 +3470,12 @@ export class PlaybackManager {
 
             const errorOccurred = displayErrorCode && typeof (displayErrorCode) === 'string';
 
-            const nextItem = self._playNextAfterEnded && !errorOccurred ? self._playQueueManager.getNextItemInfo() : null;
+            let nextItem = self._playNextAfterEnded && !errorOccurred ? self._playQueueManager.getNextItemInfo() : null;
+
+            // PirateFin: playback stops instead of moving on to an episode that can't play yet (never skipping past it).
+            if (nextItem && !self.isNextReady()) {
+                nextItem = null;
+            }
 
             const nextMediaType = (nextItem ? nextItem.item.MediaType : null);
 
@@ -3766,6 +3784,40 @@ export class PlaybackManager {
 
         const apiClient = ServerConnections.getApiClient(nextItem.item.ServerId);
         return apiClient.getItem(apiClient.getCurrentUserId(), nextItem.item.Id);
+    }
+
+    /**
+     * PirateFin: checks whether the next queued item can play (downloaded, or far enough into its download) and keeps
+     * the answer for {@link isNextReady}. The video page calls it before the Up Next countdown is due.
+     * @returns {Promise<boolean>} Whether it can play.
+     */
+    checkNextReadiness() {
+        const next = this._playQueueManager.getNextItemInfo();
+        if (!next?.item?.Id || !isServerItem(next.item)) {
+            return Promise.resolve(!!next);
+        }
+
+        const apiClient = ServerConnections.getApiClient(next.item.ServerId);
+        return apiClient.getItem(apiClient.getCurrentUserId(), next.item.Id).then(item => {
+            const ready = !isNotReadyToPlay(item);
+            this._nextReadiness = { id: item.Id, ready };
+            return ready;
+        });
+    }
+
+    /**
+     * PirateFin: whether the next queued item may autoplay: the last {@link checkNextReadiness} answer for it, else
+     * what the queue was built with.
+     * @returns {boolean} Whether it can play.
+     */
+    isNextReady() {
+        const next = this._playQueueManager.getNextItemInfo();
+        if (!next?.item) {
+            return false;
+        }
+
+        const known = this._nextReadiness;
+        return known?.id === next.item.Id ? known.ready : !isNotReadyToPlay(next.item);
     }
 
     canQueue(item) {

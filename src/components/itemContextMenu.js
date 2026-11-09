@@ -13,6 +13,7 @@ import { playbackManager } from './playback/playbackmanager';
 import toast from './toast/toast';
 import * as userSettings from '../scripts/settings/userSettings';
 import { AppFeature } from 'constants/appFeature';
+import { getReleaseStatus, hideFromContinueWatching, ReleaseStatus, showSearchSettings, showSourcePicker, supportsSearchOverride, toggleSubscription } from 'utils/piratefin';
 
 /** Item types that support downloading all children. */
 const DOWNLOAD_ALL_TYPES = [
@@ -46,6 +47,14 @@ export async function getCommands(options) {
     const canPlay = playbackManager.canPlay(item);
 
     const commands = [];
+
+    if (options.removeFromContinueWatching) {
+        commands.push({
+            name: 'Remove from Continue Watching',
+            id: 'pfremovecontinue',
+            icon: 'remove_circle_outline'
+        });
+    }
 
     if (canPlay && item.MediaType !== 'Photo') {
         if (options.play !== false) {
@@ -153,6 +162,26 @@ export async function getCommands(options) {
                 icon: 'playlist_add'
             });
         }
+
+        if (itemHelper.supportsSubscribingToSeason(item) && options.subscribe !== false) {
+            let subscribeName = item.IsSubscribed ? 'Unsubscribe from season' : globalize.translate('SubscribeToSeason');
+            if (item.IsAnime && item.IsSubscribed) {
+                subscribeName = 'Change subscription (Dub / Sub)';
+            }
+            commands.push({
+                name: subscribeName,
+                id: 'subscribetoseason',
+                icon: item.IsSubscribed ? 'notifications_off' : 'notifications_active'
+            });
+        }
+
+        if (getReleaseStatus(item) === ReleaseStatus.ChooseSource) {
+            commands.push({
+                name: 'Choose download source',
+                id: 'choosesource',
+                icon: 'download'
+            });
+        }
     }
 
     if ((item.Type === 'Timer') && user.Policy.EnableLiveTvManagement && options.cancelTimer !== false) {
@@ -228,6 +257,14 @@ export async function getCommands(options) {
                 icon: 'edit'
             });
         }
+    }
+
+    if (supportsSearchOverride(item, user?.Policy?.IsAdministrator === true)) {
+        commands.push({
+            name: 'Search settings',
+            id: 'pfsearchsettings',
+            icon: 'manage_search'
+        });
     }
 
     const canEdit = itemHelper.canEdit(user, item);
@@ -391,6 +428,12 @@ function executeCommand(item, id, options) {
     return new Promise(function (resolve, reject) {
         // eslint-disable-next-line sonarjs/max-switch-cases
         switch (id) {
+            case 'pfremovecontinue':
+                // Until it's played again; what's marked watched doesn't change.
+                hideFromContinueWatching(apiClient, itemId)
+                    .then(() => getResolveFunction(resolve, id, true)())
+                    .catch(reject);
+                break;
             case 'addtocollection':
                 import('./collectionEditor/collectionEditor').then(({ default: CollectionEditor }) => {
                     const collectionEditor = new CollectionEditor();
@@ -408,6 +451,18 @@ function executeCommand(item, id, options) {
                         serverId: serverId
                     }).then(getResolveFunction(resolve, id, true), getResolveFunction(resolve, id));
                 });
+                break;
+            case 'subscribetoseason':
+                toggleSubscription(apiClient, item, options.positionTo)
+                    .then(changed => getResolveFunction(resolve, id, changed != null)(), getResolveFunction(resolve, id));
+                break;
+            case 'pfsearchsettings':
+                showSearchSettings(apiClient, item, options.positionTo)
+                    .then(saved => getResolveFunction(resolve, id, saved)(), getResolveFunction(resolve, id));
+                break;
+            case 'choosesource':
+                showSourcePicker(apiClient, item, options.positionTo)
+                    .then(chosen => getResolveFunction(resolve, id, chosen)(), getResolveFunction(resolve, id));
                 break;
             case 'download':
                 import('../scripts/fileDownloader').then((fileDownloader) => {

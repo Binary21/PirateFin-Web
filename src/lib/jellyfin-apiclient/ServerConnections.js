@@ -9,6 +9,7 @@ import { setUserInfo } from 'scripts/settings/userSettings';
 import Dashboard from 'utils/dashboard';
 import Events from 'utils/events.ts';
 import { toApi } from 'utils/jellyfin-apiclient/compat';
+import { forgetProfile, rememberProfile } from 'utils/profiles';
 
 import ConnectionManager from './connectionManager';
 
@@ -38,7 +39,16 @@ class ServerConnections extends ConnectionManager {
         this.localApiClient = null;
         this.firstConnection = null;
 
+        // The user signed in on each server, so signing out can also remove them from the profile picker.
+        this.signedInUserIds = {};
+
         Events.on(this, 'localusersignedout', (_e, logoutInfo) => {
+            const userId = this.signedInUserIds[logoutInfo?.serverId];
+            if (userId) {
+                forgetProfile(logoutInfo.serverId, userId);
+                delete this.signedInUserIds[logoutInfo.serverId];
+            }
+
             setUserInfo(null, null);
             // Ensure the updated credentials are persisted to storage
             credentialProvider.credentials(credentialProvider.credentials());
@@ -137,6 +147,11 @@ class ServerConnections extends ConnectionManager {
     onLocalUserSignedIn(user) {
         const apiClient = this.getApiClient(user.ServerId);
         this.setLocalApiClient(apiClient);
+        this.signedInUserIds[user.ServerId] = user.Id;
+        // Signed in with "Remember me": keep the profile for the profile picker.
+        if (appSettings.enableAutoLogin()) {
+            rememberProfile(user, apiClient);
+        }
         return setUserInfo(user.Id, apiClient).then(() => {
             if (window.NativeShell && typeof window.NativeShell.onLocalUserSignedIn === 'function') {
                 return window.NativeShell.onLocalUserSignedIn(user, apiClient.accessToken());

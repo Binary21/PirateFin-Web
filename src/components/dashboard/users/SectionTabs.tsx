@@ -21,6 +21,7 @@ const SectionTabs: FunctionComponent<IProps> = ({ activeTab }: IProps) => {
     const onClickAccess = useNavigate('/dashboard/users/access');
     const onClickParentalControl = useNavigate('/dashboard/users/parentalcontrol');
     const clickPassword = useNavigate('/dashboard/users/password');
+    const onClickInsights = useNavigate('/dashboard/users/insights');
     return (
         <div
             data-role='controlgroup'
@@ -53,6 +54,13 @@ const SectionTabs: FunctionComponent<IProps> = ({ activeTab }: IProps) => {
                 className={activeTab === 'userpassword' ? 'ui-btn-active' : ''}
                 onClick={clickPassword}>
                 {globalize.translate('HeaderPassword')}
+            </LinkButton>
+            <LinkButton
+                href='#'
+                data-role='button'
+                className={activeTab === 'userinsights' ? 'ui-btn-active' : ''}
+                onClick={onClickInsights}>
+                Insights
             </LinkButton>
         </div>
     );

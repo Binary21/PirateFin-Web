@@ -8,6 +8,7 @@ declare module '@mui/material/styles' {
     interface ColorSchemeOverrides {
         appletv: true;
         blueradiance: true;
+        piratefin: true;
         purplehaze: true;
         wmc: true;
     }
@@ -81,6 +82,25 @@ const light = merge({}, DEFAULT_COLOR_SCHEME, {
     }
 });
 
+/** The Netflix inspired PirateFin color scheme. */
+const piratefin = buildCustomColorScheme({
+    palette: {
+        primary: {
+            main: '#e50914'
+        },
+        secondary: {
+            main: '#b3b3b3'
+        },
+        background: {
+            default: '#000',
+            paper: '#181818'
+        },
+        AppBar: {
+            defaultBg: '#000'
+        }
+    }
+});
+
 /** The "Purple Haze" color scheme. */
 const purplehaze = buildCustomColorScheme({
     palette: {
@@ -117,6 +137,7 @@ export const COLOR_SCHEMES = {
     blueradiance,
     dark: DEFAULT_COLOR_SCHEME,
     light,
+    piratefin,
     purplehaze,
     wmc
 };
@@ -128,7 +149,7 @@ const DEFAULT_THEME = createTheme({
         colorSchemeSelector: '[data-theme="%s"]',
         disableCssColorScheme: true
     },
-    defaultColorScheme: 'dark',
+    defaultColorScheme: 'piratefin',
     ...DEFAULT_THEME_OPTIONS,
     colorSchemes: COLOR_SCHEMES
 });

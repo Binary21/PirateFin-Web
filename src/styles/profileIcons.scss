@@ -1,0 +1,483 @@
+// PirateFin profile icons: the "Choose profile icon" picker and the admin icon pack pages.
+
+$pf-red: #e50914;
+$pf-row-gap: 0.6em;
+$pf-gutter: 4%;
+
+.pfIconPage {
+    background: #141414;
+    color: #e5e5e5;
+}
+
+.pfIconPageContent {
+    padding: 1.5em 0 4em;
+}
+
+// Header: back link + title on the left, the user's name and current icon on the right.
+.pfIconHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5em;
+    padding: 0 $pf-gutter 1.5em;
+    border-bottom: 0.08em solid #2a2a2a;
+    margin-bottom: 1.5em;
+}
+
+.pfIconBack {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+    margin: 0 0 0.4em;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #b3b3b3;
+    font: inherit;
+    font-size: 1em;
+    cursor: pointer;
+
+    &:hover,
+    &:focus {
+        color: #fff;
+    }
+}
+
+.pfIconTitle {
+    margin: 0;
+    color: #fff;
+    font-size: 2.4em;
+    font-weight: 500;
+}
+
+.pfIconCurrent {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    color: #fff;
+    font-size: 1.3em;
+}
+
+.pfIconCurrentImage {
+    width: 3.5em;
+    height: 3.5em;
+    border-radius: 0.25em;
+    object-fit: cover;
+}
+
+// One row per pack: 10 icons visible, arrows at the ends page through the rest.
+.pfIconRow {
+    --pf-icons-per-row: 10;
+
+    margin-bottom: 2em;
+}
+
+.pfIconRowTitle {
+    margin: 0 $pf-gutter 0.4em;
+    color: #e5e5e5;
+    font-size: 1.4em;
+    font-weight: 500;
+}
+
+.pfIconRowTrack {
+    position: relative;
+}
+
+.pfIconRowScroller {
+    display: grid;
+    grid-auto-columns: calc((100% - (var(--pf-icons-per-row) - 1) * #{$pf-row-gap}) / var(--pf-icons-per-row));
+    grid-auto-flow: column;
+    gap: $pf-row-gap;
+    padding: 0.5em $pf-gutter;
+    overflow-x: auto;
+    scroll-padding: 0 $pf-gutter;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.pfIconCell {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    scroll-snap-align: start;
+}
+
+// Shown above the first icon of each season; every cell keeps the slot so the icons line up.
+.pfIconSeason {
+    height: 1.4em;
+    overflow: hidden;
+    color: #b3b3b3;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+.pfIcon {
+    position: relative;
+    aspect-ratio: 1;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0.18em solid transparent;
+    border-radius: 0.3em;
+    background: #222;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s;
+
+    img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: 0.15em;
+        object-fit: cover;
+    }
+
+    &:hover,
+    &:focus {
+        z-index: 1;
+        outline: none;
+        border-color: #fff;
+        transform: scale(1.08);
+    }
+}
+
+.pfIcon-current {
+    border-color: $pf-red;
+}
+
+.pfIconRowArrow {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: $pf-gutter;
+    min-width: 1.8em;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: rgba(20, 20, 20, 0.7);
+    color: #fff;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+
+    .material-icons {
+        font-size: 2.2em;
+    }
+
+    &:hover {
+        background: rgba(20, 20, 20, 0.9);
+    }
+
+    &:focus {
+        opacity: 1;
+    }
+}
+
+.pfIconRowArrow-prev {
+    left: 0;
+}
+
+.pfIconRowArrow-next {
+    right: 0;
+}
+
+// The remote focuses icons directly and the row scrolls to them.
+.layout-tv .pfIconRowArrow {
+    display: none;
+}
+
+.pfIconRowTrack:hover .pfIconRowArrow {
+    opacity: 1;
+}
+
+.pfIconFooter {
+    margin: 3em $pf-gutter 0;
+    color: #b3b3b3;
+    font-size: 1.1em;
+    text-align: center;
+}
+
+.pfIconEmpty {
+    margin: 4em $pf-gutter;
+    color: #b3b3b3;
+    font-size: 1.2em;
+    text-align: center;
+}
+
+@media (max-width: 64em) {
+    .pfIconRow {
+        --pf-icons-per-row: 7;
+    }
+}
+
+@media (max-width: 40em) {
+    .pfIconRow {
+        --pf-icons-per-row: 4;
+    }
+
+    .pfIconTitle {
+        font-size: 1.7em;
+    }
+}
+
+// "Change profile icon?" confirmation.
+.pfIconDialogBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1em;
+    background: rgba(0, 0, 0, 0.85);
+}
+
+.pfIconDialog {
+    width: 100%;
+    max-width: 34em;
+    padding: 2em;
+    border-radius: 0.4em;
+    background: #181818;
+    color: #fff;
+    text-align: center;
+}
+
+.pfIconDialogTitle {
+    margin: 0 0 1.5em;
+    font-size: 1.8em;
+    font-weight: 500;
+}
+
+.pfIconDialogCompare {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5em;
+    margin-bottom: 2em;
+
+    > .material-icons {
+        color: #b3b3b3;
+        font-size: 2.4em;
+    }
+}
+
+.pfIconDialogFigure {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5em;
+    margin: 0;
+    color: #b3b3b3;
+
+    img {
+        width: 7em;
+        height: 7em;
+        border-radius: 0.3em;
+        object-fit: cover;
+    }
+}
+
+.pfIconDialogButtons {
+    display: flex;
+    justify-content: center;
+    gap: 1em;
+}
+
+// Admin: the list of packs.
+.pfIconPackList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    margin: 0 $pf-gutter;
+}
+
+.pfIconPackItem {
+    display: flex;
+    align-items: center;
+    gap: 1.2em;
+    padding: 0.8em 1em;
+    border-radius: 0.4em;
+    background: #1f1f1f;
+}
+
+.pfIconPackPreview {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 0.3em;
+
+    img {
+        width: 2.6em;
+        height: 2.6em;
+        border-radius: 0.2em;
+        object-fit: cover;
+    }
+}
+
+.pfIconPackText {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.pfIconPackName {
+    overflow: hidden;
+    color: #fff;
+    font-size: 1.15em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pfIconPackCount {
+    color: #b3b3b3;
+    font-size: 0.9em;
+}
+
+.pfIconToolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1em;
+    margin: 0 $pf-gutter 1.2em;
+}
+
+.pfIconToolbarSpacer {
+    flex: 1;
+}
+
+.pfIconRoundButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6em;
+    height: 2.6em;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #2a2a2a;
+    color: #fff;
+    cursor: pointer;
+
+    &:hover,
+    &:focus {
+        background: #444;
+    }
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: default;
+    }
+}
+
+// Admin: the pack editor's icon grid.
+.pfIconNameField {
+    flex: 1 1 18em;
+    min-width: 0;
+    padding: 0.6em 0.8em;
+    border: 0.08em solid #444;
+    border-radius: 0.25em;
+    background: #222;
+    color: #fff;
+    font: inherit;
+    font-size: 1.2em;
+
+    &:focus {
+        outline: none;
+        border-color: #fff;
+    }
+}
+
+.pfIconGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7.5em, 1fr));
+    gap: 0.8em;
+    margin: 0 $pf-gutter;
+}
+
+.pfIconTile {
+    position: relative;
+    aspect-ratio: 1;
+    margin: 0;
+    padding: 0;
+    border: 0.18em solid transparent;
+    border-radius: 0.3em;
+    background: #222;
+    color: #fff;
+    cursor: pointer;
+
+    img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: 0.15em;
+        object-fit: cover;
+    }
+
+    &:hover,
+    &:focus {
+        outline: none;
+        border-color: #fff;
+    }
+}
+
+.pfIconTile-add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0.15em dashed #555;
+    background: transparent;
+    color: #b3b3b3;
+
+    .material-icons {
+        font-size: 3em;
+    }
+}
+
+.pfIconTile-selected {
+    border-color: $pf-red;
+
+    &::after {
+        position: absolute;
+        top: 0.3em;
+        right: 0.3em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.5em;
+        height: 1.5em;
+        border-radius: 50%;
+        background: $pf-red;
+        color: #fff;
+        content: 'check';
+        font-family: 'Material Icons';
+        font-size: 1em;
+    }
+}
+
+// Not saved yet.
+.pfIconTile-new::before {
+    position: absolute;
+    bottom: 0.3em;
+    left: 0.3em;
+    padding: 0.1em 0.4em;
+    border-radius: 0.2em;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    content: 'New';
+    font-size: 0.75em;
+}
+
+.pfIconEditorButtons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1em;
+    margin: 2em $pf-gutter 0;
+}

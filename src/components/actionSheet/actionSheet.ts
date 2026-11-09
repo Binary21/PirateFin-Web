@@ -32,6 +32,8 @@ interface Options {
     entryAnimation?: string;
     exitAnimationDuration?: number;
     exitAnimation?: string;
+    /** In the TV layout, open as a dropdown next to positionTo (or centered) instead of full screen. */
+    inline?: boolean;
     menuItemClass?: string;
     offsetLeft?: number;
     offsetTop?: number;
@@ -93,6 +95,16 @@ function getPosition(positionTo: Element, options: Options, dlg: HTMLElement) {
 
     const pos = getOffsets([positionTo])[0];
 
+    // A dropdown: just under the anchor, left aligned with it, kept on screen.
+    if (options.positionY === 'below') {
+        const width = dlg.offsetWidth || 160;
+        return {
+            ...pos,
+            top: pos.top + (pos.height || 0) + 6,
+            left: Math.max(10, Math.min(pos.left, windowWidth - width - 10))
+        };
+    }
+
     if (options.positionY !== 'top') {
         pos.top += (pos.height || 0) / 2;
     }
@@ -149,8 +161,9 @@ export function show(options: Options) {
     };
 
     let isFullscreen;
+    const isTvDropdown = layoutManager.tv && options.inline;
 
-    if (layoutManager.tv) {
+    if (layoutManager.tv && !isTvDropdown) {
         dialogOptions.size = 'fullscreen';
         isFullscreen = true;
         dialogOptions.autoFocus = true;
@@ -160,7 +173,8 @@ export function show(options: Options) {
         dialogOptions.exitAnimation = options.exitAnimation;
         dialogOptions.entryAnimationDuration = options.entryAnimationDuration || 140;
         dialogOptions.exitAnimationDuration = options.exitAnimationDuration || 100;
-        dialogOptions.autoFocus = false;
+        // A TV dropdown still has to take focus so the remote can move through it.
+        dialogOptions.autoFocus = !!isTvDropdown;
     }
 
     const dlg = dialogHelper.createDialog(dialogOptions);
@@ -172,6 +186,10 @@ export function show(options: Options) {
     }
 
     dlg.classList.add('actionSheet');
+
+    if (isTvDropdown) {
+        dlg.classList.add('actionsheet-tvDropdown');
+    }
 
     if (options.dialogClass) {
         dlg.classList.add(options.dialogClass);
@@ -200,7 +218,7 @@ export function show(options: Options) {
         icons.push(itemIcon || '');
     }
 
-    if (layoutManager.tv) {
+    if (isFullscreen) {
         html += `<button is="paper-icon-button-light" class="btnCloseActionSheet hide-mouse-idle-tv" tabindex="-1" title="${globalize.translate('ButtonBack')}">
                      <span class="material-icons arrow_back" aria-hidden="true"></span>
                  </button>`;
@@ -209,7 +227,7 @@ export function show(options: Options) {
     // If any items have an icon, give them all an icon just to make sure they're all lined up evenly
     const center = options.title && (!renderIcon /*|| itemsWithIcons.length != options.items.length*/);
 
-    if (center || layoutManager.tv) {
+    if (center || isFullscreen) {
         html += '<div class="actionSheetContent actionSheetContent-centered">';
     } else {
         html += '<div class="actionSheetContent">';

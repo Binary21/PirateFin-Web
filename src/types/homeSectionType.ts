@@ -10,7 +10,8 @@ export enum HomeSectionType {
     LatestMedia = 'latestmedia',
     NextUp = 'nextup',
     LiveTv = 'livetv',
-    ResumeBook = 'resumebook'
+    ResumeBook = 'resumebook',
+    NewestMedia = 'newestmedia'
 }
 
 // NOTE: This needs to match the server defaults
@@ -23,5 +24,6 @@ export const DEFAULT_SECTIONS: HomeSectionType[] = [
     HomeSectionType.LiveTv,
     HomeSectionType.NextUp,
     HomeSectionType.LatestMedia,
+    HomeSectionType.NewestMedia,
     HomeSectionType.None
 ];

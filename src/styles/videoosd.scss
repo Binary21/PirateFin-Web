@@ -341,3 +341,8 @@
         transform: rotate(360deg);
     }
 }
+.btnPlay.disabled .material-icons.play_arrow {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
